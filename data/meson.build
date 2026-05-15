@@ -50,4 +50,20 @@ install_data('me.blq.FedoraUpdater.timer',
 install_data('me.blq.FedoraUpdater.check.service',
   install_dir: systemd_user_dir)
 
+pkgdatadir = get_option('prefix') / get_option('datadir') / meson.project_name()
+
+policy_conf = configuration_data()
+policy_conf.set('pkgdatadir', pkgdatadir)
+configure_file(
+  input: 'me.blq.FedoraUpdater.policy.in',
+  output: 'me.blq.FedoraUpdater.policy',
+  configuration: policy_conf,
+  install_dir: get_option('datadir') / 'polkit-1' / 'actions',
+)
+
+install_data('me.blq.FedoraUpdater.upgrade_helper.py',
+  install_dir: pkgdatadir,
+  install_mode: 'rwxr-xr-x',
+)
+
 subdir('icons')

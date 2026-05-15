@@ -4,6 +4,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import json
 import logging
 import time
 
@@ -15,31 +16,14 @@ from gi.repository import Gio, GLib, GObject
 
 log = logging.getLogger(__name__)
 
-DNF_BUS_NAME = 'org.rpm.dnf.v0'
-DNF_OBJECT_PATH = '/org/rpm/dnf/v0'
-SESSION_MANAGER_IFACE = 'org.rpm.dnf.v0.SessionManager'
-BASE_IFACE = 'org.rpm.dnf.v0.Base'
-RPM_IFACE = 'org.rpm.dnf.v0.rpm.Rpm'
-GOAL_IFACE = 'org.rpm.dnf.v0.Goal'
-ADVISORY_IFACE = 'org.rpm.dnf.v0.Advisory'
-
-# GDBus timeout: -1 means "default" (~25s), not infinite.
-# Repo metadata refresh and transactions can take minutes.
-TIMEOUT_LONG = 600000   # 10 minutes
-TIMEOUT_SHORT = 120000  # 2 minutes
-
-REBOOT_PACKAGES = {
-    'kernel', 'kernel-core', 'kernel-modules', 'kernel-modules-core',
-    'glibc', 'systemd', 'dbus', 'dbus-daemon', 'linux-firmware',
-    'gnutls', 'openssl-libs',
-}
+HELPER_NAME = 'me.blq.FedoraUpdater.upgrade_helper.py'
 
 
 class DnfBackend(GObject.Object):
     """DNF update backend.
 
     Uses libdnf5 directly for fast read-only queries (check for updates).
-    Uses dnf5daemon-server over D-Bus for privileged operations (upgrade)
+    Uses pkexec + a root helper for privileged upgrade operations
     where polkit handles authentication.
     """
 
@@ -50,11 +34,9 @@ class DnfBackend(GObject.Object):
         'upgrade-completed': (GObject.SignalFlags.RUN_LAST, None, (bool,)),
     }
 
-    def __init__(self):
+    def __init__(self, pkgdatadir):
         super().__init__()
-        self._bus = None
-        self._session_path = None
-        self._signal_subscriptions = []
+        self._helper_path = f'{pkgdatadir}/{HELPER_NAME}'
 
     # ── Check for updates (libdnf5 direct, no root) ───────────────
 
@@ -130,177 +112,79 @@ class DnfBackend(GObject.Object):
         if value is not None:
             self.emit('check-completed', value)
 
-    # ── D-Bus helpers (for privileged upgrade operations) ──────────
-
-    def _get_bus(self, callback):
-        if self._bus:
-            callback(self._bus)
-            return
-        Gio.bus_get(Gio.BusType.SYSTEM, None, self._on_bus_ready, callback)
-
-    def _on_bus_ready(self, _source, result, callback):
-        try:
-            self._bus = Gio.bus_get_finish(result)
-            log.debug('Connected to system bus')
-            callback(self._bus)
-        except GLib.Error as e:
-            log.error('Failed to connect to system bus: %s', e.message)
-            self.emit('error', f'Failed to connect to system bus: {e.message}')
-
-    def _open_session(self, callback):
-        def on_bus(bus):
-            bus.call(
-                DNF_BUS_NAME, DNF_OBJECT_PATH, SESSION_MANAGER_IFACE,
-                'open_session',
-                GLib.Variant('(a{sv})', ({},)),
-                GLib.VariantType('(o)'),
-                Gio.DBusCallFlags.NONE, TIMEOUT_SHORT, None,
-                self._on_session_opened, callback,
-            )
-        self._get_bus(on_bus)
-
-    def _on_session_opened(self, bus, result, callback):
-        try:
-            reply = bus.call_finish(result)
-            self._session_path = reply.unpack()[0]
-            log.info('Opened dnf5daemon session: %s', self._session_path)
-            callback()
-        except GLib.Error as e:
-            log.error('Failed to open dnf session: %s', e.message)
-            self.emit('error', f'Failed to open dnf session: {e.message}')
-
-    def _close_session(self):
-        if not self._bus or not self._session_path:
-            return
-        log.info('Closing dnf5daemon session: %s', self._session_path)
-        for sub_id in self._signal_subscriptions:
-            self._bus.signal_unsubscribe(sub_id)
-        self._signal_subscriptions.clear()
-        self._bus.call(
-            DNF_BUS_NAME, DNF_OBJECT_PATH, SESSION_MANAGER_IFACE,
-            'close_session',
-            GLib.Variant('(o)', (self._session_path,)),
-            GLib.VariantType('(b)'),
-            Gio.DBusCallFlags.NONE, -1, None,
-            lambda _bus, result, _data: None, None,
-        )
-        self._session_path = None
-
-    def _call_session(self, iface, method, params, reply_type, callback,
-                       timeout=TIMEOUT_SHORT):
-        self._bus.call(
-            DNF_BUS_NAME, self._session_path, iface, method,
-            params, reply_type,
-            Gio.DBusCallFlags.NONE, timeout, None,
-            callback, None,
-        )
-
-    # ── Upgrade all (dnf5daemon D-Bus, needs polkit) ──────────────
+    # ── Upgrade all (pkexec + libdnf5 helper) ────────────────────
 
     def upgrade_all_async(self):
-        log.info('Starting system upgrade via dnf5daemon')
-        self._open_session(self._do_upgrade)
-
-    def _do_upgrade(self):
-        self._subscribe_progress_signals()
-
-        self._call_session(
-            BASE_IFACE, 'read_all_repos', None,
-            GLib.VariantType('(b)'),
-            self._on_upgrade_repos_loaded,
-            timeout=TIMEOUT_LONG,
+        log.info('Starting system upgrade via pkexec helper')
+        launcher = Gio.SubprocessLauncher.new(
+            Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE
         )
-
-    def _on_upgrade_repos_loaded(self, bus, result, _data):
         try:
-            bus.call_finish(result)
-            log.debug('D-Bus repos loaded, queuing upgrade')
+            self._proc = launcher.spawnv(['pkexec', self._helper_path])
         except GLib.Error as e:
-            log.error('Failed to load repos via D-Bus: %s', e.message)
-            self._close_session()
-            self.emit('error', f'Failed to load repos: {e.message}')
+            log.error('Failed to launch upgrade helper: %s', e.message)
+            self.emit('error', f'Failed to start upgrade: {e.message}')
             return
 
-        self._call_session(
-            RPM_IFACE, 'upgrade',
-            GLib.Variant('(asa{sv})', ([], {})),
-            None,
-            self._on_upgrade_queued,
+        stdout = self._proc.get_stdout_pipe()
+        self._stream = Gio.DataInputStream.new(stdout)
+        self._read_next_line()
+
+    def _read_next_line(self):
+        self._stream.read_line_async(
+            GLib.PRIORITY_DEFAULT, None, self._on_line_read
         )
 
-    def _on_upgrade_queued(self, bus, result, _data):
+    def _on_line_read(self, stream, result):
         try:
-            bus.call_finish(result)
-            log.debug('Upgrade queued, resolving transaction')
+            line, _length = stream.read_line_finish_utf8(result)
         except GLib.Error as e:
-            log.error('Failed to queue upgrade: %s', e.message)
-            self._close_session()
-            self.emit('error', f'Failed to queue upgrade: {e.message}')
+            log.error('Error reading helper output: %s', e.message)
+            self.emit('error', f'Lost communication with upgrade helper: {e.message}')
             return
 
-        self._call_session(
-            GOAL_IFACE, 'resolve',
-            GLib.Variant('(a{sv})', ({},)),
-            GLib.VariantType('(a(sssa{sv}a{sv})u)'),
-            self._on_resolved,
-        )
-
-    def _on_resolved(self, bus, result, _data):
-        try:
-            reply = bus.call_finish(result)
-            transaction_items, _result_code = reply.unpack()
-        except GLib.Error as e:
-            log.error('Failed to resolve transaction: %s', e.message)
-            self._close_session()
-            self.emit('error', f'Failed to resolve transaction: {e.message}')
+        if line is None:
+            # EOF — process exited, wait for exit status
+            self._proc.wait_async(None, self._on_proc_exited)
             return
 
-        self._resolved_packages = []
-        for item in transaction_items:
-            nevra = item[2] if len(item) > 2 else ''
-            self._resolved_packages.append(nevra)
-
-        log.info('Transaction resolved: %d item(s)', len(self._resolved_packages))
-
-        self._call_session(
-            GOAL_IFACE, 'do_transaction',
-            GLib.Variant('(a{sv})', ({},)),
-            None,
-            self._on_transaction_complete,
-            timeout=TIMEOUT_LONG,
-        )
-
-    def _on_transaction_complete(self, bus, result, _data):
         try:
-            bus.call_finish(result)
-        except GLib.Error as e:
-            log.error('Transaction failed: %s', e.message)
-            self._close_session()
-            self.emit('error', f'Transaction failed: {e.message}')
+            msg = json.loads(line)
+        except json.JSONDecodeError:
+            log.warning('Unexpected helper output: %s', line)
+            self._read_next_line()
             return
 
-        reboot_needed = self._check_reboot_needed()
-        log.info('Upgrade completed (reboot_needed=%s)', reboot_needed)
-        self._close_session()
-        self.emit('upgrade-completed', reboot_needed)
+        msg_type = msg.get('type')
+        log.debug('Helper message: %s', msg)
 
-    def _check_reboot_needed(self):
-        for nevra in getattr(self, '_resolved_packages', []):
-            name = nevra.split('-')[0] if nevra else ''
-            if name in REBOOT_PACKAGES:
-                return True
-        return False
+        if msg_type == 'progress':
+            self.emit('upgrade-progress',
+                       msg.get('nevra', ''),
+                       msg.get('processed', 0),
+                       msg.get('total', 0))
+        elif msg_type == 'status':
+            self.emit('upgrade-progress', msg.get('message', ''), 0, 0)
+        elif msg_type == 'resolved':
+            log.info('Transaction resolved: %d item(s)', msg.get('count', 0))
+        elif msg_type == 'error':
+            log.error('Helper error: %s', msg.get('message', ''))
+            self.emit('error', msg.get('message', 'Unknown upgrade error'))
+            return
+        elif msg_type == 'done':
+            reboot_needed = msg.get('reboot_needed', False)
+            log.info('Upgrade completed (reboot_needed=%s)', reboot_needed)
+            self.emit('upgrade-completed', reboot_needed)
+            return
 
-    def _subscribe_progress_signals(self):
-        sub_id = self._bus.signal_subscribe(
-            DNF_BUS_NAME, RPM_IFACE,
-            'transaction_action_progress',
-            self._session_path,
-            None, Gio.DBusSignalFlags.NONE,
-            self._on_dbus_progress_signal,
-        )
-        self._signal_subscriptions.append(sub_id)
+        self._read_next_line()
 
-    def _on_dbus_progress_signal(self, _conn, _sender, _path, _iface, _signal, params):
-        _session, nevra, processed, total = params.unpack()
-        self.emit('upgrade-progress', nevra, processed, total)
+    def _on_proc_exited(self, proc, result):
+        try:
+            proc.wait_finish(result)
+        except GLib.Error:
+            pass
+        status = proc.get_exit_status()
+        if status != 0:
+            log.error('Upgrade helper exited with status %d', status)
+            self.emit('error', f'Upgrade process failed (exit code {status})')

@@ -19,7 +19,7 @@
 
 import logging
 
-from gi.repository import Adw, Gio, Gtk
+from gi.repository import Adw, Gio, GLib, Gtk
 
 from .dnf_backend import DnfBackend
 from .flatpak_backend import FlatpakBackend
@@ -46,7 +46,8 @@ class FedoraUpdaterWindow(Adw.ApplicationWindow):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._settings = Gio.Settings(schema_id='me.blq.FedoraUpdater')
-        self.dnf_backend = DnfBackend()
+        pkgdatadir = self.get_application().pkgdatadir
+        self.dnf_backend = DnfBackend(pkgdatadir)
         self.flatpak_backend = FlatpakBackend()
 
         self.refresh_button.connect('clicked', lambda _btn: self.check_for_updates())
@@ -220,7 +221,7 @@ class FedoraUpdaterWindow(Adw.ApplicationWindow):
     def _on_error(self, _backend, message):
         log.error('Backend error: %s', message)
         self.refresh_button.set_sensitive(True)
-        self.error_status_page.set_description(message)
+        self.error_status_page.set_description(GLib.markup_escape_text(message))
         self.main_stack.set_visible_child_name('error')
 
     def _do_restart(self):

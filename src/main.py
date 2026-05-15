@@ -41,10 +41,11 @@ from .preferences_window import FedoraUpdaterPreferencesWindow
 class FedoraUpdaterApplication(Adw.Application):
     """The main application singleton class."""
 
-    def __init__(self):
+    def __init__(self, pkgdatadir):
         super().__init__(application_id='me.blq.FedoraUpdater',
                          flags=Gio.ApplicationFlags.DEFAULT_FLAGS,
                          resource_base_path='/me/blq/FedoraUpdater')
+        self.pkgdatadir = pkgdatadir
         self.create_action('quit', lambda *_: self.quit(), ['<control>q'])
         self.create_action('about', self.on_about_action)
         self.create_action('preferences', self.on_preferences_action)
@@ -137,12 +138,12 @@ def _check_updates_headless():
     return 0
 
 
-def main(version):
+def main(version, pkgdatadir=None):
     """The application's entry point."""
     log.info('Fedora Updater %s starting', version)
 
     if '--check-updates' in sys.argv:
         return _check_updates_headless()
 
-    app = FedoraUpdaterApplication()
+    app = FedoraUpdaterApplication(pkgdatadir or '')
     return app.run(sys.argv)

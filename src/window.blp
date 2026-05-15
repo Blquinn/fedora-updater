@@ -44,7 +44,7 @@ template $FedoraUpdaterWindow: Adw.ApplicationWindow {
       Gtk.StackPage {
         name: "up-to-date";
         child: Adw.StatusPage {
-          icon-name: "emblem-ok-symbolic";
+          icon-name: "object-select-symbolic";
           title: _("System Is Up to Date");
           description: _("All packages are up to date.");
         };
@@ -101,7 +101,7 @@ template $FedoraUpdaterWindow: Adw.ApplicationWindow {
       Gtk.StackPage {
         name: "updating";
         child: Adw.StatusPage updating_status_page {
-          icon-name: "emblem-synchronizing-symbolic";
+          icon-name: "software-update-available-symbolic";
           title: _("Installing Updates");
 
           Gtk.Box {
@@ -112,6 +112,7 @@ template $FedoraUpdaterWindow: Adw.ApplicationWindow {
             Gtk.ProgressBar progress_bar {
               width-request: 300;
               show-text: true;
+              margin-bottom: 12;
             }
 
             Gtk.Label progress_label {
@@ -124,7 +125,7 @@ template $FedoraUpdaterWindow: Adw.ApplicationWindow {
       Gtk.StackPage {
         name: "done";
         child: Adw.StatusPage done_status_page {
-          icon-name: "emblem-ok-symbolic";
+          icon-name: "object-select-symbolic";
           title: _("Updates Installed");
           description: _("All updates have been installed successfully.");
         };
