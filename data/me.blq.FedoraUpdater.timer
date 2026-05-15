@@ -5,6 +5,7 @@ Description=Periodic Fedora update check
 OnBootSec=5min
 OnUnitActiveSec=24h
 Persistent=true
+Unit=me.blq.FedoraUpdater.check.service
 
 [Install]
 WantedBy=timers.target
