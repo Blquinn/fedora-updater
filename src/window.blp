@@ -67,14 +67,21 @@ template $FedoraUpdaterWindow: Adw.ApplicationWindow {
               orientation: vertical;
               spacing: 18;
 
-              Gtk.Label updates_summary_label {
-                styles ["title-4"]
-                xalign: 0.0;
-              }
+              Gtk.Box {
+                orientation: horizontal;
+                spacing: 12;
 
-              Adw.PreferencesGroup dnf_group {
-                title: _("System Packages");
-                visible: false;
+                Gtk.Label updates_summary_label {
+                  styles ["title-4"]
+                  xalign: 0.0;
+                  hexpand: true;
+                }
+
+                Gtk.Button update_all_button {
+                  label: _("Update All");
+                  valign: center;
+                  styles ["suggested-action", "pill"]
+                }
               }
 
               Adw.PreferencesGroup flatpak_group {
@@ -82,14 +89,9 @@ template $FedoraUpdaterWindow: Adw.ApplicationWindow {
                 visible: false;
               }
 
-              Gtk.Box {
-                halign: center;
-                margin-top: 6;
-
-                Gtk.Button update_all_button {
-                  label: _("Update All");
-                  styles ["suggested-action", "pill"]
-                }
+              Adw.PreferencesGroup dnf_group {
+                title: _("System Packages");
+                visible: false;
               }
             };
           };
