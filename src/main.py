@@ -17,15 +17,26 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import argparse
+import json
 import logging
+import os
 import sys
 
 import gi
 
 from gettext import gettext as _
 
+_parser = argparse.ArgumentParser(add_help=False)
+_parser.add_argument('--debug', action='store_true')
+_parser.add_argument('--check-updates', action='store_true')
+_parser.add_argument('--demo', nargs='?', const=True, default=None,
+                     metavar='SCENARIO_FILE',
+                     help='Run with mock backends. Optionally specify a scenario JSON file.')
+_args, _remaining_argv = _parser.parse_known_args()
+
 logging.basicConfig(
-    level=logging.DEBUG if '--debug' in sys.argv else logging.INFO,
+    level=logging.DEBUG if _args.debug else logging.INFO,
     format='%(name)s: %(levelname)s: %(message)s',
 )
 log = logging.getLogger(__name__)
@@ -41,11 +52,12 @@ from .preferences_window import FedoraUpdaterPreferencesWindow
 class FedoraUpdaterApplication(Adw.Application):
     """The main application singleton class."""
 
-    def __init__(self, pkgdatadir):
+    def __init__(self, pkgdatadir, demo_scenario=None):
         super().__init__(application_id='me.blq.FedoraUpdater',
                          flags=Gio.ApplicationFlags.DEFAULT_FLAGS,
                          resource_base_path='/me/blq/FedoraUpdater')
         self.pkgdatadir = pkgdatadir
+        self._demo_scenario = demo_scenario
         self.create_action('quit', lambda *_: self.quit(), ['<control>q'])
         self.create_action('about', self.on_about_action)
         self.create_action('preferences', self.on_preferences_action)
@@ -54,7 +66,15 @@ class FedoraUpdaterApplication(Adw.Application):
     def do_activate(self):
         win = self.props.active_window
         if not win:
-            win = FedoraUpdaterWindow(application=self)
+            if self._demo_scenario is not None:
+                from .mock_backends import MockDnfBackend, MockFlatpakBackend
+                win = FedoraUpdaterWindow(
+                    application=self,
+                    dnf_backend=MockDnfBackend(self._demo_scenario.get('dnf', {})),
+                    flatpak_backend=MockFlatpakBackend(self._demo_scenario.get('flatpak', {})),
+                )
+            else:
+                win = FedoraUpdaterWindow(application=self)
         win.present()
 
     def on_about_action(self, *args):
@@ -138,12 +158,33 @@ def _check_updates_headless():
     return 0
 
 
+def _load_demo_scenario(demo_arg, pkgdatadir):
+    """Load a demo scenario JSON file. Returns the parsed dict, or None."""
+    if demo_arg is None:
+        return None
+
+    if demo_arg is True:
+        # --demo with no file: use bundled default
+        path = os.path.join(pkgdatadir, 'demo_scenarios', 'updates_available.json')
+    else:
+        path = demo_arg
+
+    log.info('Loading demo scenario from %s', path)
+    with open(path) as f:
+        return json.load(f)
+
+
 def main(version, pkgdatadir=None):
     """The application's entry point."""
     log.info('Fedora Updater %s starting', version)
 
-    if '--check-updates' in sys.argv:
+    if _args.check_updates:
         return _check_updates_headless()
 
-    app = FedoraUpdaterApplication(pkgdatadir or '')
-    return app.run(sys.argv)
+    pkgdatadir = pkgdatadir or ''
+    demo_scenario = _load_demo_scenario(_args.demo, pkgdatadir)
+    if demo_scenario is not None:
+        log.info('Running in demo mode')
+
+    app = FedoraUpdaterApplication(pkgdatadir, demo_scenario=demo_scenario)
+    return app.run([sys.argv[0]] + _remaining_argv)

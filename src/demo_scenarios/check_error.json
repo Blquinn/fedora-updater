@@ -1,0 +1,25 @@
+{
+  "dnf": {
+    "check": {
+      "delay_ms": 1500,
+      "error": "Failed to download metadata: Connection timed out after 30000 milliseconds",
+      "packages": []
+    },
+    "upgrade": {
+      "progress_interval_ms": 400,
+      "error": null,
+      "reboot_needed": false
+    }
+  },
+  "flatpak": {
+    "check": {
+      "delay_ms": 500,
+      "error": null,
+      "refs": []
+    },
+    "upgrade": {
+      "delay_ms": 2000,
+      "error": null
+    }
+  }
+}

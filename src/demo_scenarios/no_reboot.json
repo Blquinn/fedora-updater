@@ -1,0 +1,44 @@
+{
+  "dnf": {
+    "check": {
+      "delay_ms": 800,
+      "error": null,
+      "packages": [
+        {
+          "name": "vim-enhanced",
+          "evr": "9.1.900-1.fc42",
+          "installed_evr": "9.1.850-1.fc42",
+          "nevra": "vim-enhanced-9.1.900-1.fc42.x86_64",
+          "arch": "x86_64",
+          "repo_id": "updates",
+          "summary": "A version of the VIM editor"
+        },
+        {
+          "name": "curl",
+          "evr": "8.11.1-1.fc42",
+          "installed_evr": "8.10.1-2.fc42",
+          "nevra": "curl-8.11.1-1.fc42.x86_64",
+          "arch": "x86_64",
+          "repo_id": "updates",
+          "summary": "A utility for getting files from remote servers"
+        }
+      ]
+    },
+    "upgrade": {
+      "progress_interval_ms": 300,
+      "error": null,
+      "reboot_needed": false
+    }
+  },
+  "flatpak": {
+    "check": {
+      "delay_ms": 500,
+      "error": null,
+      "refs": []
+    },
+    "upgrade": {
+      "delay_ms": 2000,
+      "error": null
+    }
+  }
+}

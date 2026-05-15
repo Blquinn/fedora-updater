@@ -44,6 +44,7 @@ fedora_updater_sources = [
   'window.py',
   'dnf_backend.py',
   'flatpak_backend.py',
+  'mock_backends.py',
   'utils.py',
   'preferences_window.py',
 ]
@@ -53,4 +54,8 @@ install_data(fedora_updater_sources, install_dir: moduledir)
 install_data('helpers/upgrade_helper.py',
   install_dir: pkgdatadir,
   install_mode: 'rwxr-xr-x',
+)
+
+install_data('demo_scenarios/updates_available.json',
+  install_dir: pkgdatadir / 'demo_scenarios',
 )

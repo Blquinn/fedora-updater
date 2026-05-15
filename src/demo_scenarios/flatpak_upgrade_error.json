@@ -1,0 +1,48 @@
+{
+  "dnf": {
+    "check": {
+      "delay_ms": 1000,
+      "error": null,
+      "packages": [
+        {
+          "name": "python3-libs",
+          "evr": "3.13.1-2.fc42",
+          "installed_evr": "3.13.0-1.fc42",
+          "nevra": "python3-libs-3.13.1-2.fc42.x86_64",
+          "arch": "x86_64",
+          "repo_id": "updates",
+          "summary": "Python runtime libraries"
+        }
+      ]
+    },
+    "upgrade": {
+      "progress_interval_ms": 400,
+      "error": null,
+      "reboot_needed": false
+    }
+  },
+  "flatpak": {
+    "check": {
+      "delay_ms": 500,
+      "error": null,
+      "refs": [
+        {
+          "name": "Extension Manager",
+          "ref": "app/com.mattjakeman.ExtensionManager/x86_64/stable",
+          "branch": "stable",
+          "origin": "flathub"
+        },
+        {
+          "name": "Flatseal",
+          "ref": "app/com.github.tchx84.Flatseal/x86_64/stable",
+          "branch": "stable",
+          "origin": "flathub"
+        }
+      ]
+    },
+    "upgrade": {
+      "delay_ms": 3000,
+      "error": "Flatpak update failed: Out of disk space on /var/lib/flatpak"
+    }
+  }
+}

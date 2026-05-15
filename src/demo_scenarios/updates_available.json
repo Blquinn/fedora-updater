@@ -1,0 +1,99 @@
+{
+  "dnf": {
+    "check": {
+      "delay_ms": 1000,
+      "error": null,
+      "packages": [
+        {
+          "name": "kernel",
+          "evr": "6.12.8-200.fc42",
+          "installed_evr": "6.12.5-200.fc42",
+          "nevra": "kernel-6.12.8-200.fc42.x86_64",
+          "arch": "x86_64",
+          "repo_id": "updates",
+          "summary": "The Linux Kernel",
+          "advisory_type": "security",
+          "severity": "Important"
+        },
+        {
+          "name": "glibc",
+          "evr": "2.40-4.fc42",
+          "installed_evr": "2.40-3.fc42",
+          "nevra": "glibc-2.40-4.fc42.x86_64",
+          "arch": "x86_64",
+          "repo_id": "updates",
+          "summary": "The GNU libc libraries",
+          "advisory_type": "security",
+          "severity": "Critical"
+        },
+        {
+          "name": "firefox",
+          "evr": "133.0-1.fc42",
+          "installed_evr": "132.0.2-1.fc42",
+          "nevra": "firefox-133.0-1.fc42.x86_64",
+          "arch": "x86_64",
+          "repo_id": "updates",
+          "summary": "Mozilla Firefox Web browser",
+          "advisory_type": "security",
+          "severity": "Moderate"
+        },
+        {
+          "name": "gnome-shell",
+          "evr": "47.3-1.fc42",
+          "installed_evr": "47.2-1.fc42",
+          "nevra": "gnome-shell-47.3-1.fc42.x86_64",
+          "arch": "x86_64",
+          "repo_id": "updates",
+          "summary": "Window management and application launching for GNOME"
+        },
+        {
+          "name": "python3-libs",
+          "evr": "3.13.1-2.fc42",
+          "installed_evr": "3.13.0-1.fc42",
+          "nevra": "python3-libs-3.13.1-2.fc42.x86_64",
+          "arch": "x86_64",
+          "repo_id": "updates",
+          "summary": "Python runtime libraries"
+        },
+        {
+          "name": "vim-enhanced",
+          "evr": "9.1.900-1.fc42",
+          "installed_evr": "9.1.850-1.fc42",
+          "nevra": "vim-enhanced-9.1.900-1.fc42.x86_64",
+          "arch": "x86_64",
+          "repo_id": "updates",
+          "summary": "A version of the VIM editor"
+        }
+      ]
+    },
+    "upgrade": {
+      "progress_interval_ms": 400,
+      "error": null,
+      "reboot_needed": true
+    }
+  },
+  "flatpak": {
+    "check": {
+      "delay_ms": 500,
+      "error": null,
+      "refs": [
+        {
+          "name": "GIMP",
+          "ref": "app/org.gimp.GIMP/x86_64/stable",
+          "branch": "stable",
+          "origin": "flathub"
+        },
+        {
+          "name": "Extension Manager",
+          "ref": "app/com.mattjakeman.ExtensionManager/x86_64/stable",
+          "branch": "stable",
+          "origin": "flathub"
+        }
+      ]
+    },
+    "upgrade": {
+      "delay_ms": 2000,
+      "error": null
+    }
+  }
+}

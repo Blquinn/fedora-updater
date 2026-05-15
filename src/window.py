@@ -43,12 +43,12 @@ class FedoraUpdaterWindow(Adw.ApplicationWindow):
     error_status_page = Gtk.Template.Child()
     restart_button = Gtk.Template.Child()
 
-    def __init__(self, **kwargs):
+    def __init__(self, dnf_backend=None, flatpak_backend=None, **kwargs):
         super().__init__(**kwargs)
         self._settings = Gio.Settings(schema_id='me.blq.FedoraUpdater')
         pkgdatadir = self.get_application().pkgdatadir
-        self.dnf_backend = DnfBackend(pkgdatadir)
-        self.flatpak_backend = FlatpakBackend()
+        self.dnf_backend = dnf_backend or DnfBackend(pkgdatadir)
+        self.flatpak_backend = flatpak_backend or FlatpakBackend()
 
         self.refresh_button.connect('clicked', lambda _btn: self.check_for_updates())
         self.update_all_button.connect('clicked', lambda _btn: self.start_update())

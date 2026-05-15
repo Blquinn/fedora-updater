@@ -1,0 +1,62 @@
+{
+  "dnf": {
+    "check": {
+      "delay_ms": 800,
+      "error": null,
+      "packages": [
+        {
+          "name": "kernel",
+          "evr": "6.12.8-200.fc42",
+          "installed_evr": "6.12.5-200.fc42",
+          "nevra": "kernel-6.12.8-200.fc42.x86_64",
+          "arch": "x86_64",
+          "repo_id": "updates",
+          "summary": "The Linux Kernel",
+          "advisory_type": "security",
+          "severity": "Important"
+        },
+        {
+          "name": "glibc",
+          "evr": "2.40-4.fc42",
+          "installed_evr": "2.40-3.fc42",
+          "nevra": "glibc-2.40-4.fc42.x86_64",
+          "arch": "x86_64",
+          "repo_id": "updates",
+          "summary": "The GNU libc libraries"
+        },
+        {
+          "name": "mesa-dri-drivers",
+          "evr": "24.3.1-1.fc42",
+          "installed_evr": "24.2.5-1.fc42",
+          "nevra": "mesa-dri-drivers-24.3.1-1.fc42.x86_64",
+          "arch": "x86_64",
+          "repo_id": "updates",
+          "summary": "Mesa-based DRI drivers"
+        }
+      ]
+    },
+    "upgrade": {
+      "progress_interval_ms": 500,
+      "error": "Transaction failed: Error in rpm transaction: file /usr/lib64/libglib-2.0.so.0 from install of glib2-2.80.5-1.fc42.x86_64 conflicts with file from package glib2-2.80.4-1.fc42.x86_64",
+      "reboot_needed": false
+    }
+  },
+  "flatpak": {
+    "check": {
+      "delay_ms": 400,
+      "error": null,
+      "refs": [
+        {
+          "name": "GIMP",
+          "ref": "app/org.gimp.GIMP/x86_64/stable",
+          "branch": "stable",
+          "origin": "flathub"
+        }
+      ]
+    },
+    "upgrade": {
+      "delay_ms": 2000,
+      "error": null
+    }
+  }
+}
