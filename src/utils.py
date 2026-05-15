@@ -4,11 +4,16 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import logging
+
 from gi.repository import Gio, GLib
+
+log = logging.getLogger(__name__)
 
 
 def request_reboot():
     """Request a system reboot via systemd-logind D-Bus interface."""
+    log.info('Requesting system reboot via logind')
     try:
         bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
         bus.call_sync(
@@ -22,4 +27,4 @@ def request_reboot():
             -1, None,
         )
     except GLib.Error as e:
-        print(f'Failed to request reboot: {e.message}')
+        log.error('Failed to request reboot: %s', e.message)

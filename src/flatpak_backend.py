@@ -4,7 +4,11 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import logging
+
 from gi.repository import Gio, GLib, GObject
+
+log = logging.getLogger(__name__)
 
 try:
     import gi as _gi
@@ -13,6 +17,7 @@ try:
     HAS_FLATPAK = True
 except (ValueError, ImportError):
     HAS_FLATPAK = False
+    log.info('Flatpak GI bindings not available')
 
 
 class FlatpakBackend(GObject.Object):
@@ -29,8 +34,10 @@ class FlatpakBackend(GObject.Object):
 
     def check_updates_async(self):
         if not HAS_FLATPAK:
+            log.debug('Flatpak not available, skipping check')
             self.emit('check-completed', [])
             return
+        log.info('Checking for Flatpak updates')
         task = Gio.Task.new(self, None, self._on_check_task_done)
         task.run_in_thread(self._check_thread)
 
@@ -46,8 +53,10 @@ class FlatpakBackend(GObject.Object):
                     'branch': ref.get_branch(),
                     'origin': ref.get_origin(),
                 })
+            log.info('Found %d Flatpak update(s)', len(result))
             task.return_value(result)
         except GLib.Error as e:
+            log.exception('Flatpak check failed')
             task.return_value(None)
             GLib.idle_add(self.emit, 'error', f'Flatpak check failed: {e.message}')
 
@@ -58,8 +67,10 @@ class FlatpakBackend(GObject.Object):
 
     def update_all_async(self):
         if not HAS_FLATPAK:
+            log.debug('Flatpak not available, skipping update')
             self.emit('upgrade-completed')
             return
+        log.info('Starting Flatpak update')
         task = Gio.Task.new(self, None, self._on_update_task_done)
         task.run_in_thread(self._update_thread)
 
@@ -68,11 +79,14 @@ class FlatpakBackend(GObject.Object):
             installation = Flatpak.Installation.new_system(None)
             transaction = Flatpak.Transaction.new_for_installation(installation, None)
             refs = installation.list_installed_refs_for_update(None)
+            log.info('Updating %d Flatpak ref(s)', len(refs))
             for ref in refs:
                 transaction.add_update(ref.format_ref(), None, None)
             transaction.run(None)
+            log.info('Flatpak update completed successfully')
             task.return_boolean(True)
         except GLib.Error as e:
+            log.exception('Flatpak update failed')
             task.return_boolean(False)
             GLib.idle_add(self.emit, 'error', f'Flatpak update failed: {e.message}')
 

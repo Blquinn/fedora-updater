@@ -4,11 +4,16 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import logging
+import time
+
 import libdnf5.base
 import libdnf5.repo
 import libdnf5.rpm
 
 from gi.repository import Gio, GLib, GObject
+
+log = logging.getLogger(__name__)
 
 DNF_BUS_NAME = 'org.rpm.dnf.v0'
 DNF_OBJECT_PATH = '/org/rpm/dnf/v0'
@@ -59,12 +64,18 @@ class DnfBackend(GObject.Object):
 
     def _check_thread(self, task, _source, _data, _cancellable):
         try:
+            log.info('Starting update check via libdnf5')
+            t0 = time.monotonic()
+
             base = libdnf5.base.Base()
             base.load_config()
             base.get_config().get_metadata_expire_option().set(0)
             base.setup()
             base.get_repo_sack().create_repos_from_system_configuration()
+
+            log.debug('Loading repos (metadata refresh forced)')
             base.get_repo_sack().load_repos()
+            log.debug('Repos loaded in %.1fs', time.monotonic() - t0)
 
             query = libdnf5.rpm.PackageQuery(base)
             query.filter_upgrades()
@@ -80,6 +91,8 @@ class DnfBackend(GObject.Object):
                     'summary': pkg.get_summary(),
                 })
 
+            log.info('Found %d upgradable package(s)', len(packages))
+
             # Query advisories for security classification
             adv_query = libdnf5.advisory.AdvisoryQuery(base)
             pkg_advisory_map = {}
@@ -93,6 +106,10 @@ class DnfBackend(GObject.Object):
                         if not existing or adv_type == 'security':
                             pkg_advisory_map[pkg_name] = (adv_type, severity)
 
+            security_count = sum(1 for t, _ in pkg_advisory_map.values() if t == 'security')
+            if security_count:
+                log.info('%d package(s) have security advisories', security_count)
+
             for pkg in packages:
                 pkg_name = pkg.get('name', '')
                 if pkg_name in pkg_advisory_map:
@@ -101,8 +118,10 @@ class DnfBackend(GObject.Object):
                     if severity:
                         pkg['severity'] = severity
 
+            log.info('Update check completed in %.1fs', time.monotonic() - t0)
             task.return_value(packages)
         except Exception as e:
+            log.exception('Update check failed')
             task.return_value(None)
             GLib.idle_add(self.emit, 'error', str(e))
 
@@ -122,8 +141,10 @@ class DnfBackend(GObject.Object):
     def _on_bus_ready(self, _source, result, callback):
         try:
             self._bus = Gio.bus_get_finish(result)
+            log.debug('Connected to system bus')
             callback(self._bus)
         except GLib.Error as e:
+            log.error('Failed to connect to system bus: %s', e.message)
             self.emit('error', f'Failed to connect to system bus: {e.message}')
 
     def _open_session(self, callback):
@@ -142,13 +163,16 @@ class DnfBackend(GObject.Object):
         try:
             reply = bus.call_finish(result)
             self._session_path = reply.unpack()[0]
+            log.info('Opened dnf5daemon session: %s', self._session_path)
             callback()
         except GLib.Error as e:
+            log.error('Failed to open dnf session: %s', e.message)
             self.emit('error', f'Failed to open dnf session: {e.message}')
 
     def _close_session(self):
         if not self._bus or not self._session_path:
             return
+        log.info('Closing dnf5daemon session: %s', self._session_path)
         for sub_id in self._signal_subscriptions:
             self._bus.signal_unsubscribe(sub_id)
         self._signal_subscriptions.clear()
@@ -174,6 +198,7 @@ class DnfBackend(GObject.Object):
     # ── Upgrade all (dnf5daemon D-Bus, needs polkit) ──────────────
 
     def upgrade_all_async(self):
+        log.info('Starting system upgrade via dnf5daemon')
         self._open_session(self._do_upgrade)
 
     def _do_upgrade(self):
@@ -189,7 +214,9 @@ class DnfBackend(GObject.Object):
     def _on_upgrade_repos_loaded(self, bus, result, _data):
         try:
             bus.call_finish(result)
+            log.debug('D-Bus repos loaded, queuing upgrade')
         except GLib.Error as e:
+            log.error('Failed to load repos via D-Bus: %s', e.message)
             self._close_session()
             self.emit('error', f'Failed to load repos: {e.message}')
             return
@@ -204,7 +231,9 @@ class DnfBackend(GObject.Object):
     def _on_upgrade_queued(self, bus, result, _data):
         try:
             bus.call_finish(result)
+            log.debug('Upgrade queued, resolving transaction')
         except GLib.Error as e:
+            log.error('Failed to queue upgrade: %s', e.message)
             self._close_session()
             self.emit('error', f'Failed to queue upgrade: {e.message}')
             return
@@ -221,6 +250,7 @@ class DnfBackend(GObject.Object):
             reply = bus.call_finish(result)
             transaction_items, _result_code = reply.unpack()
         except GLib.Error as e:
+            log.error('Failed to resolve transaction: %s', e.message)
             self._close_session()
             self.emit('error', f'Failed to resolve transaction: {e.message}')
             return
@@ -229,6 +259,8 @@ class DnfBackend(GObject.Object):
         for item in transaction_items:
             nevra = item[2] if len(item) > 2 else ''
             self._resolved_packages.append(nevra)
+
+        log.info('Transaction resolved: %d item(s)', len(self._resolved_packages))
 
         self._call_session(
             GOAL_IFACE, 'do_transaction',
@@ -242,11 +274,13 @@ class DnfBackend(GObject.Object):
         try:
             bus.call_finish(result)
         except GLib.Error as e:
+            log.error('Transaction failed: %s', e.message)
             self._close_session()
             self.emit('error', f'Transaction failed: {e.message}')
             return
 
         reboot_needed = self._check_reboot_needed()
+        log.info('Upgrade completed (reboot_needed=%s)', reboot_needed)
         self._close_session()
         self.emit('upgrade-completed', reboot_needed)
 

@@ -17,10 +17,18 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import logging
 import sys
+
 import gi
 
 from gettext import gettext as _
+
+logging.basicConfig(
+    level=logging.DEBUG if '--debug' in sys.argv else logging.INFO,
+    format='%(name)s: %(levelname)s: %(message)s',
+)
+log = logging.getLogger(__name__)
 
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
@@ -83,6 +91,7 @@ def _check_updates_headless():
     import libdnf5.base
     import libdnf5.rpm
 
+    log.info('Running headless update check')
     settings = Gio.Settings(schema_id='me.blq.FedoraUpdater')
 
     base = libdnf5.base.Base()
@@ -94,6 +103,7 @@ def _check_updates_headless():
     query = libdnf5.rpm.PackageQuery(base)
     query.filter_upgrades()
     dnf_count = query.size()
+    log.info('Headless check: %d DNF update(s)', dnf_count)
 
     flatpak_count = 0
     if settings.get_boolean('include-flatpak'):
@@ -102,11 +112,13 @@ def _check_updates_headless():
             from gi.repository import Flatpak
             installation = Flatpak.Installation.new_system(None)
             flatpak_count = len(installation.list_installed_refs_for_update(None))
+            log.info('Headless check: %d Flatpak update(s)', flatpak_count)
         except Exception:
-            pass
+            log.warning('Flatpak check failed in headless mode', exc_info=True)
 
     total = dnf_count + flatpak_count
     if total == 0:
+        log.info('No updates found')
         return 0
 
     app = Gio.Application(application_id='me.blq.FedoraUpdater',
@@ -127,6 +139,8 @@ def _check_updates_headless():
 
 def main(version):
     """The application's entry point."""
+    log.info('Fedora Updater %s starting', version)
+
     if '--check-updates' in sys.argv:
         return _check_updates_headless()
 

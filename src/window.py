@@ -17,10 +17,14 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import logging
+
 from gi.repository import Adw, Gio, Gtk
 
 from .dnf_backend import DnfBackend
 from .flatpak_backend import FlatpakBackend
+
+log = logging.getLogger(__name__)
 
 
 @Gtk.Template(resource_path='/me/blq/FedoraUpdater/window.ui')
@@ -71,6 +75,8 @@ class FedoraUpdaterWindow(Adw.ApplicationWindow):
         self.check_for_updates()
 
     def check_for_updates(self):
+        include_flatpak = self._settings.get_boolean('include-flatpak')
+        log.info('Checking for updates (flatpak=%s)', include_flatpak)
         self._dnf_check_done = False
         self._flatpak_check_done = False
         self._dnf_packages = []
@@ -78,7 +84,7 @@ class FedoraUpdaterWindow(Adw.ApplicationWindow):
         self.main_stack.set_visible_child_name('checking')
         self.refresh_button.set_sensitive(False)
         self.dnf_backend.check_updates_async()
-        if self._settings.get_boolean('include-flatpak'):
+        if include_flatpak:
             self.flatpak_backend.check_updates_async()
         else:
             self._flatpak_refs = []
@@ -101,9 +107,12 @@ class FedoraUpdaterWindow(Adw.ApplicationWindow):
         self.refresh_button.set_sensitive(True)
 
         if not self._dnf_packages and not self._flatpak_refs:
+            log.info('System is up to date')
             self.main_stack.set_visible_child_name('up-to-date')
             return
 
+        log.info('Updates available: %d DNF, %d Flatpak',
+                 len(self._dnf_packages), len(self._flatpak_refs))
         self._populate_package_lists()
         self.main_stack.set_visible_child_name('updates-available')
 
@@ -158,6 +167,8 @@ class FedoraUpdaterWindow(Adw.ApplicationWindow):
             self.flatpak_group.set_visible(False)
 
     def start_update(self):
+        log.info('Starting update (dnf=%d, flatpak=%d)',
+                 len(self._dnf_packages), len(self._flatpak_refs))
         self._dnf_upgrade_done = False
         self._flatpak_upgrade_done = False
         self._reboot_needed = False
@@ -200,11 +211,14 @@ class FedoraUpdaterWindow(Adw.ApplicationWindow):
         self.progress_bar.set_fraction(1.0)
 
         if self._reboot_needed:
+            log.info('Update finished, reboot required')
             self.main_stack.set_visible_child_name('restart-needed')
         else:
+            log.info('Update finished successfully')
             self.main_stack.set_visible_child_name('done')
 
     def _on_error(self, _backend, message):
+        log.error('Backend error: %s', message)
         self.refresh_button.set_sensitive(True)
         self.error_status_page.set_description(message)
         self.main_stack.set_visible_child_name('error')
