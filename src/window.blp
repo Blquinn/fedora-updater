@@ -1,0 +1,174 @@
+using Gtk 4.0;
+using Adw 1;
+
+template $FedoraUpdaterWindow: Adw.ApplicationWindow {
+  title: _("Fedora Updater");
+  default-width: 800;
+  default-height: 600;
+
+  content: Adw.ToolbarView {
+    [top]
+    Adw.HeaderBar {
+      [start]
+      Button refresh_button {
+        icon-name: "view-refresh-symbolic";
+        tooltip-text: _("Check for Updates");
+      }
+
+      [end]
+      MenuButton {
+        primary: true;
+        icon-name: "open-menu-symbolic";
+        tooltip-text: _("Main Menu");
+        menu-model: primary_menu;
+      }
+    }
+
+    content: Gtk.Stack main_stack {
+      transition-type: crossfade;
+
+      Gtk.StackPage {
+        name: "checking";
+        child: Adw.StatusPage {
+          title: _("Checking for Updates");
+          description: _("This may take a moment…");
+
+          Gtk.Spinner {
+            spinning: true;
+            width-request: 32;
+            height-request: 32;
+          }
+        };
+      }
+
+      Gtk.StackPage {
+        name: "up-to-date";
+        child: Adw.StatusPage {
+          icon-name: "emblem-ok-symbolic";
+          title: _("System Is Up to Date");
+          description: _("All packages are up to date.");
+        };
+      }
+
+      Gtk.StackPage {
+        name: "updates-available";
+        child: Gtk.ScrolledWindow {
+          hscrollbar-policy: never;
+          vexpand: true;
+
+          child: Adw.Clamp {
+            maximum-size: 600;
+            margin-top: 24;
+            margin-bottom: 24;
+            margin-start: 12;
+            margin-end: 12;
+
+            child: Gtk.Box {
+              orientation: vertical;
+              spacing: 18;
+
+              Gtk.Label updates_summary_label {
+                styles ["title-4"]
+                xalign: 0.0;
+              }
+
+              Adw.PreferencesGroup dnf_group {
+                title: _("System Packages");
+                visible: false;
+              }
+
+              Adw.PreferencesGroup flatpak_group {
+                title: _("Flatpak Apps");
+                visible: false;
+              }
+
+              Gtk.Box {
+                halign: center;
+                margin-top: 6;
+
+                Gtk.Button update_all_button {
+                  label: _("Update All");
+                  styles ["suggested-action", "pill"]
+                }
+              }
+            };
+          };
+        };
+      }
+
+      Gtk.StackPage {
+        name: "updating";
+        child: Adw.StatusPage updating_status_page {
+          icon-name: "emblem-synchronizing-symbolic";
+          title: _("Installing Updates");
+
+          Gtk.Box {
+            orientation: vertical;
+            spacing: 12;
+            halign: center;
+
+            Gtk.ProgressBar progress_bar {
+              width-request: 300;
+              show-text: true;
+            }
+
+            Gtk.Label progress_label {
+              styles ["dim-label"]
+            }
+          }
+        };
+      }
+
+      Gtk.StackPage {
+        name: "done";
+        child: Adw.StatusPage done_status_page {
+          icon-name: "emblem-ok-symbolic";
+          title: _("Updates Installed");
+          description: _("All updates have been installed successfully.");
+        };
+      }
+
+      Gtk.StackPage {
+        name: "restart-needed";
+        child: Adw.StatusPage {
+          icon-name: "system-reboot-symbolic";
+          title: _("Restart Required");
+          description: _("A restart is required to complete the update.");
+
+          Gtk.Button restart_button {
+            label: _("Restart Now");
+            halign: center;
+            styles ["suggested-action", "pill"]
+          }
+        };
+      }
+
+      Gtk.StackPage {
+        name: "error";
+        child: Adw.StatusPage error_status_page {
+          icon-name: "dialog-error-symbolic";
+          title: _("Update Failed");
+        };
+      }
+    };
+  };
+}
+
+menu primary_menu {
+  section {
+    item {
+      label: _("_Preferences");
+      action: "app.preferences";
+    }
+
+    item {
+      label: _("_Keyboard Shortcuts");
+      action: "win.show-help-overlay";
+    }
+
+    item {
+      label: _("_About Fedora Updater");
+      action: "app.about";
+    }
+  }
+}

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="fedora-updater">
+	<schema id="me.blq.FedoraUpdater" path="/me/blq/FedoraUpdater/">
+		<key name="auto-check-enabled" type="b">
+			<default>true</default>
+			<summary>Enable automatic update checking</summary>
+			<description>Whether to periodically check for available updates in the background.</description>
+		</key>
+		<key name="check-interval-hours" type="i">
+			<default>24</default>
+			<summary>Update check interval in hours</summary>
+			<description>How often to check for updates when automatic checking is enabled.</description>
+			<range min="1" max="168"/>
+		</key>
+		<key name="include-flatpak" type="b">
+			<default>true</default>
+			<summary>Include Flatpak updates</summary>
+			<description>Whether to include Flatpak application updates alongside system packages.</description>
+		</key>
+	</schema>
+</schemalist>

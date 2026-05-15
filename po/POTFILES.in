@@ -1,0 +1,9 @@
+# List of source files containing translatable strings.
+# Please keep this file sorted alphabetically.
+data/me.blq.FedoraUpdater.desktop.in
+data/me.blq.FedoraUpdater.gschema.xml
+data/me.blq.FedoraUpdater.metainfo.xml.in
+src/main.py
+src/preferences_window.blp
+src/window.blp
+src/window.py

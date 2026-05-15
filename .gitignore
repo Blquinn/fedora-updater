@@ -1,0 +1,5 @@
+build/
+_inst/
+_install/
+.claude/
+build-flatpak/

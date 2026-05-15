@@ -1,0 +1,3 @@
+[D-BUS Service]
+Name=me.blq.FedoraUpdater
+Exec=@bindir@/fedora-updater --gapplication-service

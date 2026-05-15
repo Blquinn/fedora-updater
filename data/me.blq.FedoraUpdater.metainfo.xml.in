@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>me.blq.FedoraUpdater</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+
+  <name>Fedora Updater</name>
+  <summary>Keep your Fedora system up to date</summary>
+  <description>
+    <p>A simple graphical system updater for Fedora. Updates system packages via DNF and Flatpak applications, shows security advisories, and handles reboot detection.</p>
+  </description>
+
+  <developer id="me.blq">
+    <name>Ben</name>
+  </developer>
+
+  <url type="homepage">https://github.com/blq/fedora-updater</url>
+
+  <translation type="gettext">fedora-updater</translation>
+  <launchable type="desktop-id">me.blq.FedoraUpdater.desktop</launchable>
+  <content_rating type="oars-1.1" />
+
+  <branding>
+    <color type="primary" scheme_preference="light">#3584e4</color>
+    <color type="primary" scheme_preference="dark">#1a5fb4</color>
+  </branding>
+
+  <releases>
+    <release version="0.1.0" date="2026-05-15">
+      <description translate="no">
+        <p>Initial release</p>
+        <ul>
+          <li>DNF system package updates via dnf5daemon</li>
+          <li>Flatpak application updates</li>
+          <li>Security advisory display</li>
+          <li>Reboot detection</li>
+          <li>Background update checking via systemd timer</li>
+        </ul>
+      </description>
+    </release>
+  </releases>
+
+</component>

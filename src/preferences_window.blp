@@ -1,0 +1,39 @@
+using Gtk 4.0;
+using Adw 1;
+
+template $FedoraUpdaterPreferencesWindow: Adw.PreferencesDialog {
+  Adw.PreferencesPage {
+    title: _("General");
+    icon-name: "preferences-system-symbolic";
+
+    Adw.PreferencesGroup {
+      title: _("Automatic Updates");
+
+      Adw.SwitchRow auto_check_row {
+        title: _("Check Automatically");
+        subtitle: _("Periodically check for available updates");
+      }
+
+      Adw.SpinRow check_interval_row {
+        title: _("Check Interval (hours)");
+        sensitive: bind auto_check_row.active;
+        adjustment: Adjustment {
+          lower: 1;
+          upper: 168;
+          step-increment: 1;
+          page-increment: 6;
+          value: 24;
+        };
+      }
+    }
+
+    Adw.PreferencesGroup {
+      title: _("Sources");
+
+      Adw.SwitchRow include_flatpak_row {
+        title: _("Include Flatpak");
+        subtitle: _("Also check for Flatpak application updates");
+      }
+    }
+  }
+}
