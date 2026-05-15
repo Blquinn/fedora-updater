@@ -4,3 +4,5 @@ _inst/
 _install/
 .claude/
 build-flatpak/
+
+fedora-updater*.tar.xz

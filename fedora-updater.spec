@@ -15,7 +15,7 @@ BuildRequires:  meson >= 1.0.0
 BuildRequires:  python3-devel
 BuildRequires:  blueprint-compiler
 BuildRequires:  desktop-file-utils
-BuildRequires:  libappstream-glib
+BuildRequires:  appstream
 BuildRequires:  glib2-devel
 BuildRequires:  gettext
 BuildRequires:  systemd-rpm-macros
@@ -42,7 +42,7 @@ detection. Includes a systemd timer for periodic background update checks.
 
 %install
 %meson_install
-%find_lang %{name}
+# %find_lang %{name} — re-enable when translations are added
 
 %check
 %meson_test
@@ -56,7 +56,7 @@ detection. Includes a systemd timer for periodic background update checks.
 %postun
 %systemd_user_postun %{app_id}.timer
 
-%files -f %{name}.lang
+%files
 %license COPYING
 %doc README.md
 %{_bindir}/fedora-updater
@@ -70,3 +70,7 @@ detection. Includes a systemd timer for periodic background update checks.
 %{_datadir}/polkit-1/actions/%{app_id}.policy
 %{_prefix}/lib/systemd/user/%{app_id}.timer
 %{_prefix}/lib/systemd/user/%{app_id}.check.service
+
+%changelog
+* Fri May 15 2026 Benjamin Quinn <ben@blq.me> - 0.1.0-1
+- Initial package
