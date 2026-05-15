@@ -49,3 +49,8 @@ fedora_updater_sources = [
 ]
 
 install_data(fedora_updater_sources, install_dir: moduledir)
+
+install_data('helpers/upgrade_helper.py',
+  install_dir: pkgdatadir,
+  install_mode: 'rwxr-xr-x',
+)

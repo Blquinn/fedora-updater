@@ -16,7 +16,7 @@ from gi.repository import Gio, GLib, GObject
 
 log = logging.getLogger(__name__)
 
-HELPER_NAME = 'me.blq.FedoraUpdater.upgrade_helper.py'
+HELPER_NAME = 'upgrade_helper.py'
 
 
 class DnfBackend(GObject.Object):

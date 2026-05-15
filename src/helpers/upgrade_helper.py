@@ -10,17 +10,12 @@
 # Communicates progress back via JSON lines on stdout.
 
 import json
+import subprocess
 import sys
 
 import libdnf5.base
 import libdnf5.repo
 import libdnf5.rpm
-
-REBOOT_PACKAGES = {
-    'kernel', 'kernel-core', 'kernel-modules', 'kernel-modules-core',
-    'glibc', 'systemd', 'dbus', 'dbus-daemon', 'linux-firmware',
-    'gnutls', 'openssl-libs',
-}
 
 
 def emit(msg_type, **kwargs):
@@ -106,12 +101,16 @@ def main():
             emit('error', message=f'Transaction failed: {msg}')
             return 1
 
+        result = subprocess.run(
+            ['dnf5', 'needs-restarting', '--json'],
+            capture_output=True, text=True,
+        )
         reboot_needed = False
-        for nevra in nevras:
-            name = nevra.split('-')[0] if nevra else ''
-            if name in REBOOT_PACKAGES:
-                reboot_needed = True
-                break
+        if result.returncode == 0:
+            for entry in json.loads(result.stdout):
+                if entry.get('type') == 'reboot' and entry.get('reboot_required'):
+                    reboot_needed = True
+                    break
 
         emit('done', reboot_needed=reboot_needed)
         return 0

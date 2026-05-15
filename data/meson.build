@@ -61,9 +61,5 @@ configure_file(
   install_dir: get_option('datadir') / 'polkit-1' / 'actions',
 )
 
-install_data('me.blq.FedoraUpdater.upgrade_helper.py',
-  install_dir: pkgdatadir,
-  install_mode: 'rwxr-xr-x',
-)
 
 subdir('icons')
