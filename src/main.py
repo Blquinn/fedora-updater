@@ -1,6 +1,6 @@
 # main.py
 #
-# Copyright 2026 Ben
+# Copyright 2026 Benjamin Quinn <benjamin.quinn92@gmail.com>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -62,10 +62,10 @@ class FedoraUpdaterApplication(Adw.Application):
             application_name='Fedora Updater',
             application_icon='me.blq.FedoraUpdater',
             version='0.1.0',
-            developers=['Ben'],
+            developers=['Benjamin Quinn'],
             # Translators: Replace "translator-credits" with your name/username, and optionally an email or URL.
             translator_credits=_('translator-credits'),
-            copyright='© 2026 Ben',
+            copyright='© 2026 Benjamin Quinn',
             license_type=Gtk.License.GPL_3_0,
         )
         about.present(self.props.active_window)

@@ -1,6 +1,6 @@
 # flatpak_backend.py
 #
-# Copyright 2026 Ben
+# Copyright 2026 Benjamin Quinn <benjamin.quinn92@gmail.com>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 

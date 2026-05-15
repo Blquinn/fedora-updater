@@ -11,10 +11,10 @@
   </description>
 
   <developer id="me.blq">
-    <name>Ben</name>
+    <name>Benjamin Quinn</name>
   </developer>
 
-  <url type="homepage">https://github.com/blq/fedora-updater</url>
+  <url type="homepage">https://github.com/Blquinn/fedora-updater</url>
 
   <translation type="gettext">fedora-updater</translation>
   <launchable type="desktop-id">me.blq.FedoraUpdater.desktop</launchable>
