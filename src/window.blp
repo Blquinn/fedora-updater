@@ -134,12 +134,15 @@ template $FedoraUpdaterWindow: Adw.ApplicationWindow {
 
             Gtk.Label phase_label {
               styles ["title-4"]
-              margin-bottom: 4;
+            }
+
+            Gtk.Label progress_count_label {
+              styles ["dim-label"]
             }
 
             Gtk.ProgressBar overall_progress_bar {
               width-request: 300;
-              show-text: true;
+              show-text: false;
             }
 
             Gtk.ProgressBar item_progress_bar {
@@ -194,12 +197,15 @@ template $FedoraUpdaterWindow: Adw.ApplicationWindow {
 
             Gtk.Label upgrade_status_label {
               styles ["dim-label"]
-              margin-bottom: 4;
+            }
+
+            Gtk.Label upgrade_count_label {
+              styles ["dim-label"]
             }
 
             Gtk.ProgressBar upgrade_progress_bar {
               width-request: 300;
-              show-text: true;
+              show-text: false;
             }
 
             Gtk.Label upgrade_detail_label {

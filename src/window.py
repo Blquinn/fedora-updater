@@ -40,6 +40,7 @@ class FedoraUpdaterWindow(Adw.ApplicationWindow):
     flatpak_group = Gtk.Template.Child()
     update_all_button = Gtk.Template.Child()
     phase_label = Gtk.Template.Child()
+    progress_count_label = Gtk.Template.Child()
     overall_progress_bar = Gtk.Template.Child()
     item_progress_bar = Gtk.Template.Child()
     progress_detail_label = Gtk.Template.Child()
@@ -50,6 +51,7 @@ class FedoraUpdaterWindow(Adw.ApplicationWindow):
     upgrade_available_status_page = Gtk.Template.Child()
     start_upgrade_button = Gtk.Template.Child()
     upgrade_status_label = Gtk.Template.Child()
+    upgrade_count_label = Gtk.Template.Child()
     upgrade_progress_bar = Gtk.Template.Child()
     upgrade_detail_label = Gtk.Template.Child()
     upgrade_reboot_button = Gtk.Template.Child()
@@ -214,8 +216,8 @@ class FedoraUpdaterWindow(Adw.ApplicationWindow):
         self._current_dl_nevra = ''
         self.main_stack.set_visible_child_name('updating')
         self.phase_label.set_label('')
+        self.progress_count_label.set_label('')
         self.overall_progress_bar.set_fraction(0.0)
-        self.overall_progress_bar.set_text('')
         self.item_progress_bar.set_fraction(0.0)
         self.item_progress_bar.set_visible(False)
         self.progress_detail_label.set_label('')
@@ -235,8 +237,8 @@ class FedoraUpdaterWindow(Adw.ApplicationWindow):
 
     def _on_upgrade_phase(self, _backend, phase, total_phases, label):
         self.phase_label.set_label(f'Step {phase} of {total_phases}: {label}')
+        self.progress_count_label.set_label('')
         self.overall_progress_bar.set_fraction(0.0)
-        self.overall_progress_bar.set_text('')
         self.item_progress_bar.set_fraction(0.0)
         self.progress_detail_label.set_label('')
         self.item_progress_bar.set_visible(phase == 1)
@@ -249,7 +251,7 @@ class FedoraUpdaterWindow(Adw.ApplicationWindow):
             self._current_dl_nevra = nevra
         if pkgs_total > 0:
             self.overall_progress_bar.set_fraction(pkgs_done / pkgs_total)
-            self.overall_progress_bar.set_text(
+            self.progress_count_label.set_label(
                 f'{pkgs_done} / {pkgs_total} packages')
         if total_bytes > 0:
             self.item_progress_bar.set_fraction(downloaded / total_bytes)
@@ -281,7 +283,7 @@ class FedoraUpdaterWindow(Adw.ApplicationWindow):
             fraction = (items_done + item_frac) / items_total
             fraction = max(self.overall_progress_bar.get_fraction(), fraction)
             self.overall_progress_bar.set_fraction(fraction)
-            self.overall_progress_bar.set_text(
+            self.progress_count_label.set_label(
                 f'{items_done} / {items_total}')
         if nevra:
             self.progress_detail_label.set_label(nevra)
@@ -354,8 +356,8 @@ class FedoraUpdaterWindow(Adw.ApplicationWindow):
                  self._upgrade_target_version)
         self.main_stack.set_visible_child_name('system-upgrade-downloading')
         self.upgrade_progress_bar.set_fraction(0.0)
-        self.upgrade_progress_bar.set_text('')
         self.upgrade_status_label.set_label('')
+        self.upgrade_count_label.set_label('')
         self.upgrade_detail_label.set_label('')
         self.refresh_button.set_sensitive(False)
         self.system_upgrade_backend.download_upgrade_async(
@@ -366,7 +368,7 @@ class FedoraUpdaterWindow(Adw.ApplicationWindow):
                                              pkgs_done, pkgs_total, speed):
         if pkgs_total > 0:
             self.upgrade_progress_bar.set_fraction(pkgs_done / pkgs_total)
-            self.upgrade_progress_bar.set_text(
+            self.upgrade_count_label.set_label(
                 f'{pkgs_done} / {pkgs_total} packages')
         parts = []
         if nevra:
