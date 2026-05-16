@@ -67,11 +67,14 @@ class FedoraUpdaterApplication(Adw.Application):
         win = self.props.active_window
         if not win:
             if self._demo_scenario is not None:
-                from .mock_backends import MockDnfBackend, MockFlatpakBackend
+                from .mock_backends import (MockDnfBackend, MockFlatpakBackend,
+                                            MockSystemUpgradeBackend)
                 win = FedoraUpdaterWindow(
                     application=self,
                     dnf_backend=MockDnfBackend(self._demo_scenario.get('dnf', {})),
                     flatpak_backend=MockFlatpakBackend(self._demo_scenario.get('flatpak', {})),
+                    system_upgrade_backend=MockSystemUpgradeBackend(
+                        self._demo_scenario.get('system_upgrade', {})),
                 )
             else:
                 win = FedoraUpdaterWindow(application=self)

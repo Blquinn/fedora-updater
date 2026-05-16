@@ -23,6 +23,7 @@ from gi.repository import Adw, Gio, GLib, Gtk
 
 from .dnf_backend import DnfBackend
 from .flatpak_backend import FlatpakBackend
+from .system_upgrade_backend import SystemUpgradeBackend
 
 log = logging.getLogger(__name__)
 
@@ -42,17 +43,29 @@ class FedoraUpdaterWindow(Adw.ApplicationWindow):
     done_status_page = Gtk.Template.Child()
     error_status_page = Gtk.Template.Child()
     restart_button = Gtk.Template.Child()
+    upgrade_banner = Gtk.Template.Child()
+    upgrade_available_status_page = Gtk.Template.Child()
+    start_upgrade_button = Gtk.Template.Child()
+    upgrade_progress_bar = Gtk.Template.Child()
+    upgrade_progress_label = Gtk.Template.Child()
+    upgrade_reboot_button = Gtk.Template.Child()
 
-    def __init__(self, dnf_backend=None, flatpak_backend=None, **kwargs):
+    def __init__(self, dnf_backend=None, flatpak_backend=None,
+                 system_upgrade_backend=None, **kwargs):
         super().__init__(**kwargs)
         self._settings = Gio.Settings(schema_id='me.blq.FedoraUpdater')
         pkgdatadir = self.get_application().pkgdatadir
         self.dnf_backend = dnf_backend or DnfBackend(pkgdatadir)
         self.flatpak_backend = flatpak_backend or FlatpakBackend()
+        self.system_upgrade_backend = (
+            system_upgrade_backend or SystemUpgradeBackend(pkgdatadir)
+        )
 
         self.refresh_button.connect('clicked', lambda _btn: self.check_for_updates())
         self.update_all_button.connect('clicked', lambda _btn: self.start_update())
         self.restart_button.connect('clicked', lambda _btn: self._do_restart())
+        self.start_upgrade_button.connect('clicked', lambda _btn: self._start_system_upgrade())
+        self.upgrade_reboot_button.connect('clicked', lambda _btn: self._do_upgrade_reboot())
 
         self.dnf_backend.connect('check-completed', self._on_dnf_check_completed)
         self.dnf_backend.connect('error', self._on_error)
@@ -63,6 +76,11 @@ class FedoraUpdaterWindow(Adw.ApplicationWindow):
         self.flatpak_backend.connect('error', self._on_error)
         self.flatpak_backend.connect('upgrade-completed', self._on_flatpak_upgrade_completed)
 
+        self.system_upgrade_backend.connect('check-completed', self._on_system_upgrade_check_completed)
+        self.system_upgrade_backend.connect('download-progress', self._on_system_upgrade_download_progress)
+        self.system_upgrade_backend.connect('download-completed', self._on_system_upgrade_download_completed)
+        self.system_upgrade_backend.connect('error', self._on_error)
+
         self._dnf_packages = []
         self._flatpak_refs = []
         self._dnf_rows = []
@@ -72,6 +90,7 @@ class FedoraUpdaterWindow(Adw.ApplicationWindow):
         self._dnf_upgrade_done = False
         self._flatpak_upgrade_done = False
         self._reboot_needed = False
+        self._upgrade_target_version = 0
 
         self.check_for_updates()
 
@@ -85,6 +104,7 @@ class FedoraUpdaterWindow(Adw.ApplicationWindow):
         self.main_stack.set_visible_child_name('checking')
         self.refresh_button.set_sensitive(False)
         self.dnf_backend.check_updates_async()
+        self.system_upgrade_backend.check_available_upgrade_async()
         if include_flatpak:
             self.flatpak_backend.check_updates_async()
         else:
@@ -106,10 +126,19 @@ class FedoraUpdaterWindow(Adw.ApplicationWindow):
             return
 
         self.refresh_button.set_sensitive(True)
+        self._update_upgrade_banner()
 
         if not self._dnf_packages and not self._flatpak_refs:
-            log.info('System is up to date')
-            self.main_stack.set_visible_child_name('up-to-date')
+            if self._upgrade_target_version > 0:
+                log.info('System is up to date, Fedora %d upgrade available',
+                         self._upgrade_target_version)
+                self.upgrade_available_status_page.set_description(
+                    f'Fedora {self._upgrade_target_version} is ready to download and install.'
+                )
+                self.main_stack.set_visible_child_name('upgrade-available')
+            else:
+                log.info('System is up to date')
+                self.main_stack.set_visible_child_name('up-to-date')
             return
 
         log.info('Updates available: %d DNF, %d Flatpak',
@@ -223,6 +252,58 @@ class FedoraUpdaterWindow(Adw.ApplicationWindow):
         self.refresh_button.set_sensitive(True)
         self.error_status_page.set_description(GLib.markup_escape_text(message))
         self.main_stack.set_visible_child_name('error')
+
+    # ── System upgrade handlers ───────────────────────────────────
+
+    def _on_system_upgrade_check_completed(self, _backend, target_version):
+        self._upgrade_target_version = target_version
+        if target_version > 0:
+            log.info('Fedora %d upgrade available', target_version)
+        self._update_upgrade_banner()
+
+    def _update_upgrade_banner(self):
+        """Show the upgrade banner only when updates must be installed first.
+
+        When the system is up to date, the upgrade is shown as a main stack
+        page instead of a banner.
+        """
+        if (self._upgrade_target_version <= 0
+                or not self._dnf_check_done
+                or not self._dnf_packages):
+            self.upgrade_banner.set_revealed(False)
+            return
+
+        ver = self._upgrade_target_version
+        self.upgrade_banner.set_title(
+            f'Fedora {ver} is available \u2014 install updates and restart first'
+        )
+        self.upgrade_banner.set_revealed(True)
+
+    def _start_system_upgrade(self):
+        log.info('User initiated system upgrade download for Fedora %d',
+                 self._upgrade_target_version)
+        self.main_stack.set_visible_child_name('system-upgrade-downloading')
+        self.upgrade_progress_bar.set_fraction(0.0)
+        self.upgrade_progress_label.set_label('')
+        self.refresh_button.set_sensitive(False)
+        self.system_upgrade_backend.download_upgrade_async(
+            self._upgrade_target_version
+        )
+
+    def _on_system_upgrade_download_progress(self, _backend, message, fraction):
+        if fraction >= 0:
+            self.upgrade_progress_bar.set_fraction(fraction)
+        else:
+            self.upgrade_progress_bar.pulse()
+        self.upgrade_progress_label.set_label(message)
+
+    def _on_system_upgrade_download_completed(self, _backend):
+        log.info('System upgrade download complete, ready for reboot')
+        self.refresh_button.set_sensitive(True)
+        self.main_stack.set_visible_child_name('system-upgrade-ready')
+
+    def _do_upgrade_reboot(self):
+        self.system_upgrade_backend.trigger_offline_reboot()
 
     def _do_restart(self):
         from .utils import request_reboot

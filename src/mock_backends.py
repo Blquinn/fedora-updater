@@ -81,6 +81,61 @@ class MockDnfBackend(GObject.Object):
             return GLib.SOURCE_REMOVE
 
 
+class MockSystemUpgradeBackend(GObject.Object):
+    """Mock system upgrade backend for demo mode."""
+
+    __gsignals__ = {
+        'check-completed': (GObject.SignalFlags.RUN_LAST, None, (int,)),
+        'download-progress': (GObject.SignalFlags.RUN_LAST, None, (str, float)),
+        'download-completed': (GObject.SignalFlags.RUN_LAST, None, ()),
+        'error': (GObject.SignalFlags.RUN_LAST, None, (str,)),
+    }
+
+    def __init__(self, scenario):
+        super().__init__()
+        self._check = scenario.get('check', {})
+        self._download = scenario.get('download', {})
+
+    def check_available_upgrade_async(self):
+        delay = self._check.get('delay_ms', 800)
+        log.info('[demo] Mock system upgrade check starting (delay=%dms)', delay)
+        GLib.timeout_add(delay, self._emit_check_result)
+
+    def _emit_check_result(self):
+        target = self._check.get('target_version', 0)
+        log.info('[demo] Mock system upgrade check: target=%d', target)
+        self.emit('check-completed', target)
+        return GLib.SOURCE_REMOVE
+
+    def download_upgrade_async(self, target_version):
+        self._download_step = 0
+        total = self._download.get('steps', 5)
+        interval = self._download.get('progress_interval_ms', 800)
+        self._download_total = total
+        log.info('[demo] Mock system upgrade download starting (%d steps)', total)
+        GLib.timeout_add(interval, self._emit_download_progress)
+
+    def _emit_download_progress(self):
+        self._download_step += 1
+        if self._download_step < self._download_total:
+            fraction = self._download_step / self._download_total
+            self.emit('download-progress',
+                      f'Downloading package {self._download_step}/{self._download_total}',
+                      fraction)
+            return GLib.SOURCE_CONTINUE
+        else:
+            error = self._download.get('error')
+            if error:
+                self.emit('error', error)
+            else:
+                log.info('[demo] Mock system upgrade download completed')
+                self.emit('download-completed')
+            return GLib.SOURCE_REMOVE
+
+    def trigger_offline_reboot(self):
+        log.info('[demo] Mock offline reboot triggered (no-op in demo mode)')
+
+
 class MockFlatpakBackend(GObject.Object):
     """Mock Flatpak backend that emits signals based on scenario configuration."""
 

@@ -24,8 +24,17 @@ template $FedoraUpdaterWindow: Adw.ApplicationWindow {
       }
     }
 
-    content: Gtk.Stack main_stack {
-      transition-type: crossfade;
+    content: Gtk.Box {
+      orientation: vertical;
+
+      Adw.Banner upgrade_banner {
+        title: _("A new version of Fedora is available");
+        revealed: false;
+      }
+
+      Gtk.Stack main_stack {
+        transition-type: crossfade;
+        vexpand: true;
 
       Gtk.StackPage {
         name: "checking";
@@ -47,6 +56,20 @@ template $FedoraUpdaterWindow: Adw.ApplicationWindow {
           icon-name: "object-select-symbolic";
           title: _("System Is Up to Date");
           description: _("All packages are up to date.");
+        };
+      }
+
+      Gtk.StackPage {
+        name: "upgrade-available";
+        child: Adw.StatusPage upgrade_available_status_page {
+          icon-name: "software-update-available-symbolic";
+          title: _("System Upgrade Available");
+
+          Gtk.Button start_upgrade_button {
+            label: _("Download Upgrade");
+            halign: center;
+            styles ["suggested-action", "pill"]
+          }
         };
       }
 
@@ -147,12 +170,55 @@ template $FedoraUpdaterWindow: Adw.ApplicationWindow {
       }
 
       Gtk.StackPage {
+        name: "system-upgrade-downloading";
+        child: Adw.StatusPage {
+          icon-name: "software-update-available-symbolic";
+          title: _("Downloading System Upgrade");
+          description: _("This may take a while depending on your connection…");
+
+          Gtk.Box {
+            orientation: vertical;
+            spacing: 12;
+            halign: center;
+
+            Gtk.ProgressBar upgrade_progress_bar {
+              width-request: 300;
+              show-text: true;
+              margin-bottom: 12;
+            }
+
+            Gtk.Label upgrade_progress_label {
+              styles ["dim-label"]
+              ellipsize: end;
+              max-width-chars: 60;
+            }
+          }
+        };
+      }
+
+      Gtk.StackPage {
+        name: "system-upgrade-ready";
+        child: Adw.StatusPage {
+          icon-name: "system-reboot-symbolic";
+          title: _("System Upgrade Ready");
+          description: _("Restart to upgrade. The installation will run during the restart.");
+
+          Gtk.Button upgrade_reboot_button {
+            label: _("Restart & Upgrade");
+            halign: center;
+            styles ["suggested-action", "pill"]
+          }
+        };
+      }
+
+      Gtk.StackPage {
         name: "error";
         child: Adw.StatusPage error_status_page {
           icon-name: "dialog-error-symbolic";
           title: _("Update Failed");
         };
       }
+    }
     };
   };
 }
