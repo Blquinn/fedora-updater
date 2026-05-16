@@ -49,8 +49,9 @@ class FedoraUpdaterWindow(Adw.ApplicationWindow):
     upgrade_banner = Gtk.Template.Child()
     upgrade_available_status_page = Gtk.Template.Child()
     start_upgrade_button = Gtk.Template.Child()
+    upgrade_status_label = Gtk.Template.Child()
     upgrade_progress_bar = Gtk.Template.Child()
-    upgrade_progress_label = Gtk.Template.Child()
+    upgrade_detail_label = Gtk.Template.Child()
     upgrade_reboot_button = Gtk.Template.Child()
 
     def __init__(self, dnf_backend=None, flatpak_backend=None,
@@ -83,6 +84,7 @@ class FedoraUpdaterWindow(Adw.ApplicationWindow):
 
         self.system_upgrade_backend.connect('check-completed', self._on_system_upgrade_check_completed)
         self.system_upgrade_backend.connect('download-progress', self._on_system_upgrade_download_progress)
+        self.system_upgrade_backend.connect('download-status', self._on_system_upgrade_download_status)
         self.system_upgrade_backend.connect('download-completed', self._on_system_upgrade_download_completed)
         self.system_upgrade_backend.connect('error', self._on_error)
 
@@ -352,18 +354,30 @@ class FedoraUpdaterWindow(Adw.ApplicationWindow):
                  self._upgrade_target_version)
         self.main_stack.set_visible_child_name('system-upgrade-downloading')
         self.upgrade_progress_bar.set_fraction(0.0)
-        self.upgrade_progress_label.set_label('')
+        self.upgrade_progress_bar.set_text('')
+        self.upgrade_status_label.set_label('')
+        self.upgrade_detail_label.set_label('')
         self.refresh_button.set_sensitive(False)
         self.system_upgrade_backend.download_upgrade_async(
             self._upgrade_target_version
         )
 
-    def _on_system_upgrade_download_progress(self, _backend, message, fraction):
-        if fraction >= 0:
-            self.upgrade_progress_bar.set_fraction(fraction)
-        else:
-            self.upgrade_progress_bar.pulse()
-        self.upgrade_progress_label.set_label(message)
+    def _on_system_upgrade_download_progress(self, _backend, nevra,
+                                             pkgs_done, pkgs_total, speed):
+        if pkgs_total > 0:
+            self.upgrade_progress_bar.set_fraction(pkgs_done / pkgs_total)
+            self.upgrade_progress_bar.set_text(
+                f'{pkgs_done} / {pkgs_total} packages')
+        parts = []
+        if nevra:
+            parts.append(nevra)
+        if speed:
+            parts.append(speed)
+        if parts:
+            self.upgrade_detail_label.set_label(' \u2014 '.join(parts))
+
+    def _on_system_upgrade_download_status(self, _backend, message):
+        self.upgrade_status_label.set_label(message)
 
     def _on_system_upgrade_download_completed(self, _backend):
         log.info('System upgrade download complete, ready for reboot')

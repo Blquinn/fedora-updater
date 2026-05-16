@@ -39,7 +39,10 @@ class SystemUpgradeBackend(GObject.Object):
 
     __gsignals__ = {
         'check-completed': (GObject.SignalFlags.RUN_LAST, None, (int,)),
-        'download-progress': (GObject.SignalFlags.RUN_LAST, None, (str, float)),
+        'download-progress': (GObject.SignalFlags.RUN_LAST, None,
+                              (str, int, int, str)),
+        # nevra, pkgs_done, pkgs_total, speed
+        'download-status': (GObject.SignalFlags.RUN_LAST, None, (str,)),
         'download-completed': (GObject.SignalFlags.RUN_LAST, None, ()),
         'error': (GObject.SignalFlags.RUN_LAST, None, (str,)),
     }
@@ -147,12 +150,13 @@ class SystemUpgradeBackend(GObject.Object):
         log.debug('System upgrade helper: %s', msg)
 
         if msg_type == 'download-progress':
-            downloaded = msg.get('downloaded', 0)
-            total = msg.get('total', 0)
-            fraction = downloaded / total if total > 0 else 0.0
-            self.emit('download-progress', msg.get('message', ''), fraction)
+            self.emit('download-progress',
+                       msg.get('nevra', ''),
+                       msg.get('packages_done', 0),
+                       msg.get('packages_total', 0),
+                       msg.get('speed', ''))
         elif msg_type == 'status':
-            self.emit('download-progress', msg.get('message', ''), -1.0)
+            self.emit('download-status', msg.get('message', ''))
         elif msg_type == 'error':
             log.error('System upgrade helper error: %s', msg.get('message', ''))
             self.emit('error', msg.get('message', 'Unknown error'))

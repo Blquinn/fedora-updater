@@ -14,6 +14,7 @@
 #   system_upgrade_helper.py reboot         — trigger offline upgrade reboot
 
 import json
+import re
 import subprocess
 import sys
 
@@ -23,9 +24,19 @@ def emit(msg_type, **kwargs):
     print(json.dumps(kwargs), flush=True)
 
 
+# Matches dnf5 download progress lines like:
+#   [  1/502] package-1.0-1.fc43.x86_64.rpm    5.0 MiB/s |   2.1 MiB |  00m00s
+_DL_RE = re.compile(
+    r'^\[\s*(\d+)/(\d+)\]\s+(\S+)'
+)
+_SPEED_RE = re.compile(
+    r'([\d.]+\s*\S+/s)'
+)
+
+
 def do_download(releasever):
     """Download system upgrade packages for the target release."""
-    emit('status', message=f'Downloading upgrade packages for Fedora {releasever}')
+    emit('status', message=f'Preparing upgrade to Fedora {releasever}')
 
     proc = subprocess.Popen(
         ['dnf5', 'system-upgrade', 'download',
@@ -39,7 +50,19 @@ def do_download(releasever):
         line = line.strip()
         if not line:
             continue
-        emit('status', message=line)
+
+        m = _DL_RE.match(line)
+        if m:
+            pkg_done = int(m.group(1))
+            pkg_total = int(m.group(2))
+            nevra = m.group(3)
+            speed_m = _SPEED_RE.search(line)
+            speed = speed_m.group(1) if speed_m else ''
+            emit('download-progress',
+                 nevra=nevra, packages_done=pkg_done,
+                 packages_total=pkg_total, speed=speed)
+        else:
+            emit('status', message=line)
 
     rc = proc.wait()
     if rc != 0:

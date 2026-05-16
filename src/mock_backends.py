@@ -131,9 +131,19 @@ class MockDnfBackend(GObject.Object):
 class MockSystemUpgradeBackend(GObject.Object):
     """Mock system upgrade backend for demo mode."""
 
+    MOCK_PACKAGES = [
+        'kernel-6.12.0-1.fc43.x86_64.rpm',
+        'glibc-2.40-1.fc43.x86_64.rpm',
+        'systemd-256-1.fc43.x86_64.rpm',
+        'gnome-shell-47.0-1.fc43.x86_64.rpm',
+        'firefox-130.0-1.fc43.x86_64.rpm',
+    ]
+
     __gsignals__ = {
         'check-completed': (GObject.SignalFlags.RUN_LAST, None, (int,)),
-        'download-progress': (GObject.SignalFlags.RUN_LAST, None, (str, float)),
+        'download-progress': (GObject.SignalFlags.RUN_LAST, None,
+                              (str, int, int, str)),
+        'download-status': (GObject.SignalFlags.RUN_LAST, None, (str,)),
         'download-completed': (GObject.SignalFlags.RUN_LAST, None, ()),
         'error': (GObject.SignalFlags.RUN_LAST, None, (str,)),
     }
@@ -156,19 +166,21 @@ class MockSystemUpgradeBackend(GObject.Object):
 
     def download_upgrade_async(self, target_version):
         self._download_step = 0
-        total = self._download.get('steps', 5)
+        total = self._download.get('steps', len(self.MOCK_PACKAGES))
         interval = self._download.get('progress_interval_ms', 800)
         self._download_total = total
-        log.info('[demo] Mock system upgrade download starting (%d steps)', total)
+        log.info('[demo] Mock system upgrade download starting (%d packages)', total)
+        self.emit('download-status', f'Preparing upgrade to Fedora {target_version}')
         GLib.timeout_add(interval, self._emit_download_progress)
 
     def _emit_download_progress(self):
         self._download_step += 1
-        if self._download_step < self._download_total:
-            fraction = self._download_step / self._download_total
-            self.emit('download-progress',
-                      f'Downloading package {self._download_step}/{self._download_total}',
-                      fraction)
+        if self._download_step <= self._download_total:
+            nevra = self.MOCK_PACKAGES[
+                (self._download_step - 1) % len(self.MOCK_PACKAGES)]
+            self.emit('download-progress', nevra,
+                      self._download_step, self._download_total,
+                      '5.2 MiB/s')
             return GLib.SOURCE_CONTINUE
         else:
             error = self._download.get('error')
