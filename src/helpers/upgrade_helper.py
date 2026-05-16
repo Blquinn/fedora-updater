@@ -12,6 +12,7 @@
 import json
 import subprocess
 import sys
+import time
 
 import libdnf5.base
 import libdnf5.repo
@@ -23,11 +24,48 @@ def emit(msg_type, **kwargs):
     print(json.dumps(kwargs), flush=True)
 
 
+class DownloadProgressCB(libdnf5.repo.DownloadCallbacks):
+    """Report per-package download progress via JSON on stdout."""
+
+    def __init__(self, total_packages):
+        super().__init__()
+        self._total_packages = total_packages
+        self._done_packages = 0
+        self._last_progress_time = 0
+
+    def add_new_download(self, user_data, description, total_to_download):
+        emit('download-start', nevra=description,
+             total_to_download=int(total_to_download),
+             packages_done=self._done_packages,
+             packages_total=self._total_packages)
+        return user_data
+
+    def progress(self, user_cb_data, total_to_download, downloaded):
+        now = time.monotonic()
+        if now - self._last_progress_time < 0.1:
+            return 0  # OK
+        self._last_progress_time = now
+        emit('download-progress',
+             downloaded=int(downloaded),
+             total_to_download=int(total_to_download),
+             packages_done=self._done_packages,
+             packages_total=self._total_packages)
+        return 0  # OK
+
+    def end(self, user_cb_data, status, msg):
+        self._done_packages += 1
+        emit('download-end',
+             packages_done=self._done_packages,
+             packages_total=self._total_packages)
+        return 0  # OK
+
+
 class ProgressCB(libdnf5.rpm.TransactionCallbacks):
     def __init__(self):
         super().__init__()
         self._total_items = 0
         self._done_items = 0
+        self._started = False
 
     def install_progress(self, item, amount, total):
         self._report(item, amount, total)
@@ -37,21 +75,26 @@ class ProgressCB(libdnf5.rpm.TransactionCallbacks):
 
     def transaction_progress(self, amount, total):
         self._total_items = total
-        self._done_items = amount
-        emit('progress', nevra='', processed=amount, total=total)
 
     def install_start(self, item, total):
+        if self._started:
+            self._done_items += 1
+        self._started = True
         nevra = item.get_package().get_nevra() if item.get_package() else ''
         emit('item-start', nevra=nevra, action='install')
 
     def uninstall_start(self, item, total):
+        if self._started:
+            self._done_items += 1
+        self._started = True
         nevra = item.get_package().get_nevra() if item.get_package() else ''
         emit('item-start', nevra=nevra, action='remove')
 
     def _report(self, item, amount, total):
         nevra = item.get_package().get_nevra() if item.get_package() else ''
-        emit('progress', nevra=nevra, processed=self._done_items,
-             total=self._total_items)
+        emit('install-progress', nevra=nevra,
+             item_amount=amount, item_total=total,
+             items_done=self._done_items, items_total=self._total_items)
 
 
 def main():
@@ -85,10 +128,13 @@ def main():
             emit('done', reboot_needed=False)
             return 0
 
-        emit('status', message='Downloading packages')
+        emit('phase', phase=1, total_phases=2, label='Downloading')
+        dl_cb = DownloadProgressCB(len(nevras))
+        dl_cb_ptr = libdnf5.repo.DownloadCallbacksUniquePtr(dl_cb)
+        base.set_download_callbacks(dl_cb_ptr)
         transaction.download()
 
-        emit('status', message='Running transaction')
+        emit('phase', phase=2, total_phases=2, label='Installing')
 
         cb = ProgressCB()
         cb_ptr = libdnf5.rpm.TransactionCallbacksUniquePtr(cb)

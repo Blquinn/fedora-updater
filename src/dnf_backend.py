@@ -30,7 +30,11 @@ class DnfBackend(GObject.Object):
     __gsignals__ = {
         'check-completed': (GObject.SignalFlags.RUN_LAST, None, (object,)),
         'error': (GObject.SignalFlags.RUN_LAST, None, (str,)),
-        'upgrade-progress': (GObject.SignalFlags.RUN_LAST, None, (str, int, int)),
+        'upgrade-phase': (GObject.SignalFlags.RUN_LAST, None, (int, int, str)),
+        'download-progress': (GObject.SignalFlags.RUN_LAST, None,
+                              (str, int, int, int, int)),
+        'install-progress': (GObject.SignalFlags.RUN_LAST, None,
+                             (str, int, int, int, int)),
         'upgrade-completed': (GObject.SignalFlags.RUN_LAST, None, (bool,)),
     }
 
@@ -158,13 +162,27 @@ class DnfBackend(GObject.Object):
         msg_type = msg.get('type')
         log.debug('Helper message: %s', msg)
 
-        if msg_type == 'progress':
-            self.emit('upgrade-progress',
+        if msg_type == 'phase':
+            self.emit('upgrade-phase',
+                       msg.get('phase', 0),
+                       msg.get('total_phases', 2),
+                       msg.get('label', ''))
+        elif msg_type in ('download-start', 'download-progress', 'download-end'):
+            self.emit('download-progress',
                        msg.get('nevra', ''),
-                       msg.get('processed', 0),
-                       msg.get('total', 0))
+                       msg.get('downloaded', 0),
+                       msg.get('total_to_download', 0),
+                       msg.get('packages_done', 0),
+                       msg.get('packages_total', 0))
+        elif msg_type == 'install-progress':
+            self.emit('install-progress',
+                       msg.get('nevra', ''),
+                       msg.get('item_amount', 0),
+                       msg.get('item_total', 0),
+                       msg.get('items_done', 0),
+                       msg.get('items_total', 0))
         elif msg_type == 'status':
-            self.emit('upgrade-progress', msg.get('message', ''), 0, 0)
+            log.info('Helper status: %s', msg.get('message', ''))
         elif msg_type == 'resolved':
             log.info('Transaction resolved: %d item(s)', msg.get('count', 0))
         elif msg_type == 'error':

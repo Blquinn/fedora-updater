@@ -17,6 +17,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import collections
 import logging
 
 from gi.repository import Adw, Gio, GLib, Gtk
@@ -38,8 +39,10 @@ class FedoraUpdaterWindow(Adw.ApplicationWindow):
     dnf_group = Gtk.Template.Child()
     flatpak_group = Gtk.Template.Child()
     update_all_button = Gtk.Template.Child()
-    progress_bar = Gtk.Template.Child()
-    progress_label = Gtk.Template.Child()
+    phase_label = Gtk.Template.Child()
+    overall_progress_bar = Gtk.Template.Child()
+    item_progress_bar = Gtk.Template.Child()
+    progress_detail_label = Gtk.Template.Child()
     done_status_page = Gtk.Template.Child()
     error_status_page = Gtk.Template.Child()
     restart_button = Gtk.Template.Child()
@@ -69,7 +72,9 @@ class FedoraUpdaterWindow(Adw.ApplicationWindow):
 
         self.dnf_backend.connect('check-completed', self._on_dnf_check_completed)
         self.dnf_backend.connect('error', self._on_error)
-        self.dnf_backend.connect('upgrade-progress', self._on_upgrade_progress)
+        self.dnf_backend.connect('upgrade-phase', self._on_upgrade_phase)
+        self.dnf_backend.connect('download-progress', self._on_download_progress)
+        self.dnf_backend.connect('install-progress', self._on_install_progress)
         self.dnf_backend.connect('upgrade-completed', self._on_upgrade_completed)
 
         self.flatpak_backend.connect('check-completed', self._on_flatpak_check_completed)
@@ -202,9 +207,16 @@ class FedoraUpdaterWindow(Adw.ApplicationWindow):
         self._dnf_upgrade_done = False
         self._flatpak_upgrade_done = False
         self._reboot_needed = False
+        self._speed_samples = collections.deque(maxlen=30)
+        self._last_speed_update = 0.0
+        self._current_dl_nevra = ''
         self.main_stack.set_visible_child_name('updating')
-        self.progress_bar.set_fraction(0.0)
-        self.progress_label.set_label('')
+        self.phase_label.set_label('')
+        self.overall_progress_bar.set_fraction(0.0)
+        self.overall_progress_bar.set_text('')
+        self.item_progress_bar.set_fraction(0.0)
+        self.item_progress_bar.set_visible(False)
+        self.progress_detail_label.set_label('')
         self.refresh_button.set_sensitive(False)
 
         if self._dnf_packages:
@@ -219,10 +231,66 @@ class FedoraUpdaterWindow(Adw.ApplicationWindow):
 
         self._maybe_finish_update()
 
-    def _on_upgrade_progress(self, _backend, nevra, processed, total):
-        if total > 0:
-            self.progress_bar.set_fraction(processed / total)
-        self.progress_label.set_label(nevra)
+    def _on_upgrade_phase(self, _backend, phase, total_phases, label):
+        self.phase_label.set_label(f'Step {phase} of {total_phases}: {label}')
+        self.overall_progress_bar.set_fraction(0.0)
+        self.overall_progress_bar.set_text('')
+        self.item_progress_bar.set_fraction(0.0)
+        self.progress_detail_label.set_label('')
+        self.item_progress_bar.set_visible(phase == 1)
+        self._speed_samples.clear()
+        self._last_speed_update = 0.0
+
+    def _on_download_progress(self, _backend, nevra, downloaded,
+                              total_bytes, pkgs_done, pkgs_total):
+        if nevra:
+            self._current_dl_nevra = nevra
+        if pkgs_total > 0:
+            self.overall_progress_bar.set_fraction(pkgs_done / pkgs_total)
+            self.overall_progress_bar.set_text(
+                f'{pkgs_done} / {pkgs_total} packages')
+        if total_bytes > 0:
+            self.item_progress_bar.set_fraction(downloaded / total_bytes)
+
+        now = GLib.get_monotonic_time() / 1_000_000
+        self._speed_samples.append((now, downloaded))
+        while (self._speed_samples
+               and (now - self._speed_samples[0][0]) > 3.0):
+            self._speed_samples.popleft()
+
+        if now - self._last_speed_update >= 0.5 and len(self._speed_samples) >= 2:
+            self._last_speed_update = now
+            dt = self._speed_samples[-1][0] - self._speed_samples[0][0]
+            db = self._speed_samples[-1][1] - self._speed_samples[0][1]
+            if dt > 0 and db >= 0:
+                speed = db / dt
+                speed_str = self._format_speed(speed)
+                name = self._current_dl_nevra or ''
+                if name:
+                    self.progress_detail_label.set_label(
+                        f'{name} \u2014 {speed_str}')
+                else:
+                    self.progress_detail_label.set_label(speed_str)
+
+    def _on_install_progress(self, _backend, nevra, item_amount,
+                             item_total, items_done, items_total):
+        if items_total > 0:
+            item_frac = item_amount / item_total if item_total > 0 else 0
+            fraction = (items_done + item_frac) / items_total
+            fraction = max(self.overall_progress_bar.get_fraction(), fraction)
+            self.overall_progress_bar.set_fraction(fraction)
+            self.overall_progress_bar.set_text(
+                f'{items_done} / {items_total}')
+        if nevra:
+            self.progress_detail_label.set_label(nevra)
+
+    @staticmethod
+    def _format_speed(bps):
+        if bps >= 1_000_000:
+            return f'{bps / 1_000_000:.1f} MB/s'
+        if bps >= 1_000:
+            return f'{bps / 1_000:.0f} KB/s'
+        return f'{bps:.0f} B/s'
 
     def _on_upgrade_completed(self, _backend, reboot_needed):
         self._dnf_upgrade_done = True
@@ -238,7 +306,7 @@ class FedoraUpdaterWindow(Adw.ApplicationWindow):
             return
 
         self.refresh_button.set_sensitive(True)
-        self.progress_bar.set_fraction(1.0)
+        self.overall_progress_bar.set_fraction(1.0)
 
         if self._reboot_needed:
             log.info('Update finished, reboot required')

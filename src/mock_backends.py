@@ -19,9 +19,16 @@ class MockDnfBackend(GObject.Object):
     __gsignals__ = {
         'check-completed': (GObject.SignalFlags.RUN_LAST, None, (object,)),
         'error': (GObject.SignalFlags.RUN_LAST, None, (str,)),
-        'upgrade-progress': (GObject.SignalFlags.RUN_LAST, None, (str, int, int)),
+        'upgrade-phase': (GObject.SignalFlags.RUN_LAST, None, (int, int, str)),
+        'download-progress': (GObject.SignalFlags.RUN_LAST, None,
+                              (str, int, int, int, int)),
+        'install-progress': (GObject.SignalFlags.RUN_LAST, None,
+                             (str, int, int, int, int)),
         'upgrade-completed': (GObject.SignalFlags.RUN_LAST, None, (bool,)),
     }
+
+    MOCK_PKG_SIZE = 5_000_000  # 5 MB per package for simulation
+    MOCK_DL_CHUNK = 500_000    # 500 KB per tick
 
     def __init__(self, scenario):
         super().__init__()
@@ -53,32 +60,72 @@ class MockDnfBackend(GObject.Object):
             return
 
         packages = self._check.get('packages', [])
-        self._upgrade_index = 0
+        self._packages = packages
         self._upgrade_total = len(packages)
+        self._dl_pkg_index = 0
+        self._dl_bytes = 0
         interval = self._upgrade.get('progress_interval_ms', 400)
         log.info('[demo] Mock DNF upgrade starting (%d packages, %dms interval)',
                  self._upgrade_total, interval)
-        GLib.timeout_add(interval, self._emit_next_progress)
+
+        # Phase 1: Downloading
+        self.emit('upgrade-phase', 1, 2, 'Downloading')
+        GLib.timeout_add(max(interval // 4, 50), self._emit_download_tick)
 
     def _emit_upgrade_error(self, message):
         self.emit('error', message)
         return GLib.SOURCE_REMOVE
 
-    def _emit_next_progress(self):
-        packages = self._check.get('packages', [])
-        if self._upgrade_index < self._upgrade_total:
-            pkg = packages[self._upgrade_index]
-            self._upgrade_index += 1
-            self.emit('upgrade-progress',
-                      pkg.get('nevra', pkg.get('name', '')),
-                      self._upgrade_index,
-                      self._upgrade_total)
-            return GLib.SOURCE_CONTINUE
+    def _emit_download_tick(self):
+        if self._dl_pkg_index >= self._upgrade_total:
+            # Download phase done, start install phase
+            self._install_index = 0
+            self._install_bytes = 0
+            self.emit('upgrade-phase', 2, 2, 'Installing')
+            interval = self._upgrade.get('progress_interval_ms', 400)
+            GLib.timeout_add(max(interval // 3, 50), self._emit_install_tick)
+            return GLib.SOURCE_REMOVE
+
+        pkg = self._packages[self._dl_pkg_index]
+        nevra = pkg.get('nevra', pkg.get('name', ''))
+        self._dl_bytes += self.MOCK_DL_CHUNK
+
+        if self._dl_bytes >= self.MOCK_PKG_SIZE:
+            self._dl_pkg_index += 1
+            self._dl_bytes = 0
+            self.emit('download-progress', '',
+                      0, self.MOCK_PKG_SIZE,
+                      self._dl_pkg_index, self._upgrade_total)
         else:
+            self.emit('download-progress', nevra,
+                      self._dl_bytes, self.MOCK_PKG_SIZE,
+                      self._dl_pkg_index, self._upgrade_total)
+
+        return GLib.SOURCE_CONTINUE
+
+    def _emit_install_tick(self):
+        if self._install_index >= self._upgrade_total:
             reboot = self._upgrade.get('reboot_needed', False)
             log.info('[demo] Mock DNF upgrade completed (reboot_needed=%s)', reboot)
             self.emit('upgrade-completed', reboot)
             return GLib.SOURCE_REMOVE
+
+        pkg = self._packages[self._install_index]
+        nevra = pkg.get('nevra', pkg.get('name', ''))
+        self._install_bytes += self.MOCK_DL_CHUNK
+
+        if self._install_bytes >= self.MOCK_PKG_SIZE:
+            self._install_index += 1
+            self._install_bytes = 0
+            self.emit('install-progress', '',
+                      0, self.MOCK_PKG_SIZE,
+                      self._install_index, self._upgrade_total)
+        else:
+            self.emit('install-progress', nevra,
+                      self._install_bytes, self.MOCK_PKG_SIZE,
+                      self._install_index, self._upgrade_total)
+
+        return GLib.SOURCE_CONTINUE
 
 
 class MockSystemUpgradeBackend(GObject.Object):

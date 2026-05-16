@@ -125,21 +125,33 @@ template $FedoraUpdaterWindow: Adw.ApplicationWindow {
         name: "updating";
         child: Adw.StatusPage updating_status_page {
           icon-name: "software-update-available-symbolic";
-          title: _("Installing Updates");
+          title: _("Updating");
 
           Gtk.Box {
             orientation: vertical;
-            spacing: 12;
+            spacing: 8;
             halign: center;
 
-            Gtk.ProgressBar progress_bar {
-              width-request: 300;
-              show-text: true;
-              margin-bottom: 12;
+            Gtk.Label phase_label {
+              styles ["title-4"]
+              margin-bottom: 4;
             }
 
-            Gtk.Label progress_label {
+            Gtk.ProgressBar overall_progress_bar {
+              width-request: 300;
+              show-text: true;
+            }
+
+            Gtk.ProgressBar item_progress_bar {
+              width-request: 300;
+              show-text: false;
+            }
+
+            Gtk.Label progress_detail_label {
               styles ["dim-label"]
+              ellipsize: end;
+              max-width-chars: 60;
+              margin-top: 4;
             }
           }
         };
