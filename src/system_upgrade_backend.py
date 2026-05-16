@@ -9,16 +9,15 @@
 import json
 import logging
 import time
-
-import libdnf5.base
-import libdnf5.repo
-import libdnf5.rpm
+import urllib.request
+import urllib.error
 
 from gi.repository import Gio, GLib, GObject
 
 log = logging.getLogger(__name__)
 
 HELPER_NAME = 'system_upgrade_helper.py'
+PKGDB_COLLECTIONS_URL = 'https://admin.fedoraproject.org/pkgdb/api/collections/'
 
 
 def _get_current_version():
@@ -33,8 +32,8 @@ def _get_current_version():
 class SystemUpgradeBackend(GObject.Object):
     """Backend for checking and performing major Fedora version upgrades.
 
-    Uses libdnf5 for read-only version detection and pkexec + a root helper
-    for the privileged download and reboot operations.
+    Queries the Fedora pkgdb API to detect released versions, and uses
+    pkexec + a root helper for the privileged download and reboot operations.
     """
 
     __gsignals__ = {
@@ -63,34 +62,35 @@ class SystemUpgradeBackend(GObject.Object):
             log.info('Current Fedora version: %d', current)
             target = current + 1
 
-            log.info('Checking if Fedora %d is available', target)
+            log.info('Checking if Fedora %d is available via pkgdb', target)
             t0 = time.monotonic()
 
-            base = libdnf5.base.Base()
-            base.load_config()
-            base.get_config().get_metadata_expire_option().set(0)
-            vars = base.get_vars()
-            vars.set('releasever', str(target))
-            base.setup()
-            base.get_repo_sack().create_repos_from_system_configuration()
-
+            req = urllib.request.Request(PKGDB_COLLECTIONS_URL)
+            req.add_header('Accept', 'application/json')
             try:
-                base.get_repo_sack().load_repos()
-            except Exception:
-                log.info('Could not load repos for Fedora %d, not available yet', target)
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    data = json.loads(resp.read())
+            except (urllib.error.URLError, OSError) as e:
+                log.warning('Failed to query pkgdb: %s', e)
                 task.return_value(0)
                 return
 
-            query = libdnf5.rpm.PackageQuery(base)
-            query.filter_name(['fedora-release'])
-            query.filter_arch(['noarch'])
+            # Look for the target version with "Active" status
+            collections = data.get('collections', [])
+            target_active = any(
+                c.get('name') == 'Fedora Linux'
+                and c.get('version') == str(target)
+                and c.get('status') == 'Active'
+                for c in collections
+            )
 
-            if query.size() > 0:
+            if target_active:
                 log.info('Fedora %d is available (check took %.1fs)',
                          target, time.monotonic() - t0)
                 task.return_value(target)
             else:
-                log.info('Fedora %d repos exist but no fedora-release found', target)
+                log.info('Fedora %d is not yet released (check took %.1fs)',
+                         target, time.monotonic() - t0)
                 task.return_value(0)
 
         except Exception as e:
